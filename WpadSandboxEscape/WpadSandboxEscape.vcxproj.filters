@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="WpadSandboxEscape.cpp">
+    <ClCompile Include="WpadSandboxEscape.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
