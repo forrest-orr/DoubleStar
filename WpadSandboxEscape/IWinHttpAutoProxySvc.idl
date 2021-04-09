@@ -1,0 +1,233 @@
+/*
+WPAD Escape Project
+*/
+
+import "oaidl.idl";
+import "ocidl.idl";
+
+[
+	uuid(3473dd4d-2e88-4006-9cba-22570909dd10),
+	version(5.1),
+	helpstring("WinHTTP Web Proxy Auto Discovery Service")
+]
+
+interface IWinHttpAutoProxySvc
+{
+
+	cpp_quote("#define WINHTTP_AUTOPROXY_CONFIG_URL 0x00000002")
+	cpp_quote("#define WINHTTP_AUTOPROXY_RUN_OUTPROCESS_ONLY 0x00020000")
+
+
+	typedef enum DNS_CONNECTION_POLICY_TAG
+	{
+		TAG_DNS_CONNECTION_POLICY_TAG_DEFAULT = 0,
+		TAG_DNS_CONNECTION_POLICY_TAG_CONNECTION_MANAGER,
+		TAG_DNS_CONNECTION_POLICY_TAG_WWWPT
+	} DNS_CONNECTION_POLICY_TAG;
+
+
+	/* Memory Size: 32 */
+	typedef struct tagProxyResolveUrl
+	{
+		[unique, string] WCHAR *Url;         /* Offset: 0 */ /* unique */   /* http://www.google.com/ */
+		[unique, string] WCHAR *Domain;      /* Offset: 8 */ /* unique */   /* www.google.com */
+		[unique, string] WCHAR *Seperator;   /* Offset: 16 */ /* unique */  /* / */
+		WORD Member4;                        /* Offset: 24 */ /* ENUM16 */  /* 0x3 */
+		WORD Member5;                        /* Offset: 28 */               /* 0x50 */
+	} tagProxyResolveUrl;
+
+
+	/* Memory Size: 32 */
+	typedef struct WINHTTP_AUTOPROXY_OPTIONS
+	{
+		DWORD dwFlags;                               /* Offset: 0 */
+		DWORD dwAutoDetectFlags;                     /* Offset: 4 */
+		[unique, string] WCHAR *lpszAutoConfigUrl;   /* Offset: 8 */ /* unique */
+		[unique] DWORD *lpvReserved;                 /* Offset: 16 */ /* unique */
+		DWORD dwReserved;                            /* Offset: 24 */
+		DWORD fAutoLogonIfChallenged;                /* Offset: 28 */
+	} WINHTTP_AUTOPROXY_OPTIONS;
+
+
+	/* Memory Size: 32 */
+	typedef struct WINHTTP_PROXY_RESULT_ENTRY
+	{
+		BOOL fProxy;                         /* Offset: 0 */
+		BOOL fBypass;                        /* Offset: 4 */
+		DWORD ProxyScheme;                   /* Offset: 8 */ /* ENUM16 */
+		[unique, string] WCHAR *pwszProxy;   /* Offset: 16 */ /* unique */
+		WORD ProxyPort;                      /* Offset: 24 */
+	} WINHTTP_PROXY_RESULT_ENTRY;
+
+
+	/* Memory Size: 24 */
+	typedef struct WINHTTP_SESSION_OPTIONS
+	{
+		DWORD dwMaxTimeout;   /* Offset: 0 */    /* 0xffffffff */
+		DWORD dwTimeout1;     /* Offset: 4 */    /* 0x0000ea60 */
+		DWORD Member2;        /* Offset: 8 */    /* 0x00000005 */
+		DWORD dwTimeout2;     /* Offset: 12 */   /* 0x00007530 */
+		DWORD dwTimeout3;     /* Offset: 16 */   /* 0x00007530 */
+		DWORD Member5;        /* Offset: 20 */   /* 0x00000000 */
+	} WINHTTP_SESSION_OPTIONS;
+
+
+	/* Memory Size: 32 */
+	typedef struct WINHTTP_PROXY_RESULT_EX
+	{
+		DWORD cEntries;                                             /* Offset: 0 */
+		[size_is(cEntries)] WINHTTP_PROXY_RESULT_ENTRY *pEntries;   /* Offset: 8 */ /* C:(FC_POINTER_CONFORMANCE)(0)(FC_ZERO)(FC_ULONG)(Early) */
+		DWORD *hProxyDetectionHandle;                               /* Offset: 16 */ /* unique */ /* HANDLE type is not supported here. So DWORD * */
+		DWORD dwProxyInterfaceAffinity;                             /* Offset: 24 */
+	} WINHTTP_PROXY_RESULT_EX;
+
+
+	/* Memory Size: 128 */
+	typedef struct WINHTTP_PROXY_NETWORKING_KEY
+	{
+		BYTE pbBuffer[128];   /* Offset: 0 */
+	} WINHTTP_PROXY_NETWORKING_KEY;
+
+
+	/* Memory Size: 112 */
+	typedef struct WINHTTP_PROXY_SETTINGS
+	{
+		DWORD dwStructSize;                                                    /* Offset: 0 */
+		DWORD dwFlags;                                                         /* Offset: 4 */
+		DWORD dwCurrentSettingsVersion;                                        /* Offset: 8 */
+		[unique, string] WCHAR *pwszConnectionName;                            /* Offset: 16 */ /* unique */
+		[unique, string] WCHAR *pwszProxy;                                     /* Offset: 24 */ /* unique */
+		[unique, string] WCHAR *pwszProxyBypass;                               /* Offset: 32 */ /* unique */
+		[unique, string] WCHAR *pwszAutoconfigUrl;                             /* Offset: 40 */ /* unique */
+		[unique, string] WCHAR *pwszAutoconfigSecondaryUrl;                    /* Offset: 48 */ /* unique */
+		DWORD dwAutoDiscoveryFlags;                                            /* Offset: 56 */
+		[unique, string] WCHAR *pwszLastKnownGoodAutoConfigUrl;                /* Offset: 64 */ /* unique */
+		DWORD dwAutoconfigReloadDelayMins;                                     /* Offset: 72 */
+		FILETIME ftLastKnownDetectTime;                                        /* Offset: 76 */
+		DWORD dwDetectedInterfaceIpCount;                                      /* Offset: 84 */
+		[size_is(dwDetectedInterfaceIpCount)] DWORD *pdwDetectedInterfaceIp;   /* Offset: 88 */ /* C:(FC_POINTER_CONFORMANCE)(84)(FC_ZERO)(FC_ULONG)(Early) */
+		DWORD cNetworkKeys;                                                    /* Offset: 96 */
+		[size_is(cNetworkKeys)] WINHTTP_PROXY_NETWORKING_KEY *pNetworkKeys;    /* Offset: 104 */ /* C:(FC_POINTER_CONFORMANCE)(96)(FC_ZERO)(FC_ULONG)(Early) */
+	} WINHTTP_PROXY_SETTINGS;
+
+
+	/* Memory Size: 16 */
+	typedef struct DNS_CONNECTION_IFINDEX_ENTRY
+	{
+		[unique, string] WCHAR *pwszConnectionName;   /* Offset: 0 */ /* unique */
+		DWORD dwIfIndex;                              /* Offset: 8 */
+	} DNS_CONNECTION_IFINDEX_ENTRY;
+
+
+	/* Memory Size: 16 */
+	typedef struct DNS_CONNECTION_IFINDEX_LIST
+	{
+		[size_is(nEntries)] DNS_CONNECTION_IFINDEX_ENTRY *pConnectionIfIndexEntries;   /* Offset: 0 */ /* C:(FC_POINTER_CONFORMANCE)(8)(FC_ZERO)(FC_ULONG)(0) */
+		DWORD nEntries;                                                                /* Offset: 8 */
+	} DNS_CONNECTION_IFINDEX_LIST;
+
+
+	/* Memory Size: 56 */
+	typedef struct DNS_CONNECTION_POLICY_ENTRY
+	{
+		[unique, string] WCHAR *pwszHost;     /* Offset: 0 */ /* unique */
+		[unique, string] WCHAR *pwszAppId;    /* Offset: 8 */ /* unique */
+		DWORD cbAppSid;                       /* Offset: 16 */
+		[size_is(cbAppSid)] BYTE *pbAppSid;   /* Offset: 24 */ /* C:(FC_POINTER_CONFORMANCE)(16)(FC_ZERO)(FC_ULONG)(Early) */
+		DWORD nConnections;                   /* Offset: 32 */
+		[unique] WCHAR **ppwszConnections;    /* Offset: 40 */ /* C:(FC_POINTER_CONFORMANCE)(32)(FC_ZERO)(FC_ULONG)(Early) */ /* unique */
+		DWORD dwPolicyEntryFlags;             /* Offset: 48 */
+	} DNS_CONNECTION_POLICY_ENTRY;
+
+
+	/* Memory Size: 16 */
+	typedef struct DNS_CONNECTION_POLICY_ENTRY_LIST
+	{
+		[size_is(nEntries)] DNS_CONNECTION_POLICY_ENTRY *pPolicyEntries;   /* Offset: 0 */ /* C:(FC_POINTER_CONFORMANCE)(8)(FC_ZERO)(FC_ULONG)(0) */
+		DWORD nEntries;                                                    /* Offset: 8 */
+	} DNS_CONNECTION_POLICY_ENTRY_LIST;
+
+
+	HRESULT GetProxyForUrl(
+		handle_t hRpcBinding,                                           /* Stack Offset: 8 */
+		[in] tagProxyResolveUrl *ProxyResolveUrl,                       /* Stack Offset: 16 */
+		[in] WINHTTP_AUTOPROXY_OPTIONS *AutoProxyOptions,               /* Stack Offset: 24 */
+		[in] WINHTTP_SESSION_OPTIONS *SessionOptions,                   /* Stack Offset: 32 */
+		[in] DWORD DataLength,                              /* NULL */  /* Stack Offset: 40 */
+		[in, unique][size_is(DataLength)] BYTE *ByteArray,  /* NULL */  /* Stack Offset: 48 */ /* C:(FC_TOP_LEVEL_CONFORMANCE)(40)(FC_ZERO)(FC_ULONG)(Early) */ /* unique */
+		[out] DWORD *Int,                                               /* Stack Offset: 56 */
+		[out] WINHTTP_PROXY_RESULT_EX *ProxyResultEx,                   /* Stack Offset: 64 */
+		[out, system_handle(sh_file)] HANDLE *NameResTrkRecordHandle,   /* Stack Offset: 72 */ /* FC_SYSTEM_HANDLE File */
+		[out] DWORD *WinHttpStatusCode                                  /* Stack Offset: 80 */
+	);
+
+
+	HRESULT ResetAutoProxy(
+		handle_t hRpcBinding,   /* Stack Offset: 0 */
+		[in] DWORD dwFlags      /* Stack Offset: 8 */ /* WINHTTP_RESET_ALL | WINHTTP_RESET_OUT_OF_PROC */
+	);
+
+
+	HRESULT SaveProxyCredentials(
+		handle_t hRpcBinding,                /* Stack Offset: 0 */
+		[in] DWORD CredentialFlag,           /* Stack Offset: 8 */
+		[in, string] WCHAR *TargetName,      /* Stack Offset: 16 */
+		[in, string] WCHAR *UserName,        /* Stack Offset: 24 */
+		[in, string] WCHAR *CredentialBlob   /* Stack Offset: 32 */
+	);
+
+
+	HRESULT StoreSavedProxyCredentialsForCurrentUser(
+		handle_t hRpcBinding,             /* Stack Offset: 0 */
+		[in] DWORD CredentialFlag,        /* Stack Offset: 8 */
+		[in, string] WCHAR *TargetName,   /* Stack Offset: 16 */
+		[out] DWORD *StatusCode           /* Stack Offset: 24 */
+	);
+
+
+	HRESULT DeleteSavedProxyCredentials(
+		handle_t hRpcBinding,      /* Stack Offset: 0 */
+		[in] wchar_t *TargetName   /* Stack Offset: 8 */
+	);
+
+
+	HRESULT ReindicateAllProxies();
+
+
+	HRESULT ReadProxySettings(
+		handle_t hRpcBinding,                         /* Stack Offset: 0 */
+		[in, unique, string] WCHAR *ConnectionName,   /* Stack Offset: 8 */ /* unique */
+		[in] DWORD dwFlags,                           /* Stack Offset: 16 */
+		[in] DWORD p4,                                /* Stack Offset: 24 */
+		[out] DWORD *p5,                              /* Stack Offset: 32 */
+		[out] DWORD *p6,                              /* Stack Offset: 40 */
+		[out] WINHTTP_PROXY_SETTINGS *ProxySettings   /* Stack Offset: 48 */
+	);
+
+
+	HRESULT WriteProxySettings(
+		handle_t hRpcBinding,                        /* Stack Offset: 0 */
+		[in] BOOL fForceUpdate,                      /* Stack Offset: 8 */
+		[in] WINHTTP_PROXY_SETTINGS *ProxySettings   /* Stack Offset: 16 */
+	);
+
+
+	HRESULT ConnectionUpdateIfIndexTable(
+		handle_t hRpcBinding,                                         /* Stack Offset: 0 */
+		[in] DNS_CONNECTION_IFINDEX_LIST *pConnectionIfIndexEntries   /* Stack Offset: 8 */
+	);
+
+
+	HRESULT ConnectionSetPolicyEntries(
+		handle_t hRpcBinding,                                     /* Stack Offset: 0 */
+		[in] DNS_CONNECTION_POLICY_TAG PolicyEntryTag,            /* Stack Offset: 8 */
+		[in] DNS_CONNECTION_POLICY_ENTRY_LIST *pPolicyEntryList   /* Stack Offset: 16 */
+	);
+
+
+	HRESULT ConnectionDeletePolicyEntries(
+		handle_t hRpcBinding,                           /* Stack Offset: 0 */
+		[in] DNS_CONNECTION_POLICY_TAG PolicyEntryTag   /* Stack Offset: 8 */
+	);
+
+}

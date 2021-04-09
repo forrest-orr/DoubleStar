@@ -13,10 +13,31 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\RPC">
+      <UniqueIdentifier>{d60f4b32-16ce-4156-be5d-801e7a921dca}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WpadSandboxEscape.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="IWinHttpAutoProxySvc_c.c">
+      <Filter>Header Files\RPC</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="IWinHttpAutoProxySvc.acf">
+      <Filter>Header Files\RPC</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Midl Include="IWinHttpAutoProxySvc.idl">
+      <Filter>Header Files\RPC</Filter>
+    </Midl>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="IWinHttpAutoProxySvc_h.h">
+      <Filter>Header Files\RPC</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -1,0 +1,8 @@
+/*
+WPAD Escape Project
+*/
+
+interface IWinHttpAutoProxySvc
+{
+	[async] GetProxyForUrl();
+}

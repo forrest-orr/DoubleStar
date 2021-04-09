@@ -6,3 +6,10 @@
 *.opendb
 *.db
 *.db
+*.tlog
+*.pdb
+*.txt
+*.log
+*.obj
+*.recipe
+WpadSandboxEscape/.vs/WpadSandboxEscape/v16/.suo
