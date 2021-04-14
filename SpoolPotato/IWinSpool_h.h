@@ -6,7 +6,7 @@
  /* File created by MIDL compiler version 8.01.0622 */
 /* at Mon Jan 18 22:14:07 2038
  */
-/* Compiler settings for ms-rprn.idl:
+/* Compiler settings for IWinSpool.idl:
     Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.01.0622 
     protocol : all , ms_ext, c_ext, robust
     error checks: allocation ref bounds_check enum stub_data 
@@ -31,8 +31,8 @@
 #endif /* __RPCNDR_H_VERSION__ */
 
 
-#ifndef __ms2Drprn_h_h__
-#define __ms2Drprn_h_h__
+#ifndef __IWinSpool_h_h__
+#define __IWinSpool_h_h__
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
 #pragma once

