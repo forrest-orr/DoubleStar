@@ -17,9 +17,9 @@
 ////////
 
 #define DEBUG
-#define EXE_BUILD
-//#define DLL_BUILD
-//#define SHELLCODE_BUILD
+//#define EXE_BUILD
+#define DLL_BUILD
+#define SHELLCODE_BUILD
 #define SESSION_ID 1
 #define COMMAND_LINE L"notepad.exe"
 #define INTERACTIVE_PROCESS FALSE
@@ -362,7 +362,6 @@ BOOL DllMain(HMODULE hModule, uint32_t dwReason, void* pReserved) {
     case DLL_PROCESS_ATTACH:
 #ifdef SHELLCODE_BUILD
         SpoolPotato();
-        Sleep(INFINITE);
 #else
         CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)SpoolPotato, NULL, 0, NULL);
 #endif
