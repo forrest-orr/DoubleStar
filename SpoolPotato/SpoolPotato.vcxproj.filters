@@ -24,6 +24,9 @@
     <ClCompile Include="SpoolPotato.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="RpcHelpers.c">
+      <Filter>Source Files\RPC</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Midl Include="IWinSpool.idl">

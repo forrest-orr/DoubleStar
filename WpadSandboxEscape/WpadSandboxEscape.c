@@ -191,7 +191,7 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 }
 
 #ifdef DLL_BUILD
-BOOL APIENTRY DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
+BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
     switch (dwReason) {
         case DLL_PROCESS_ATTACH:
 #ifdef SHELLCODE_BUILD
