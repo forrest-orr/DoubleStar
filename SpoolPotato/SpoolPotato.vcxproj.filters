@@ -21,7 +21,7 @@
     <ClCompile Include="IWinSpool_c.c">
       <Filter>Source Files\RPC</Filter>
     </ClCompile>
-    <ClCompile Include="SpoolPotato.cpp">
+    <ClCompile Include="SpoolPotato.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

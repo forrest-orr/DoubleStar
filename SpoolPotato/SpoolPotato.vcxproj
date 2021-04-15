@@ -141,7 +141,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="IWinSpool_c.c" />
-    <ClCompile Include="SpoolPotato.cpp" />
+    <ClCompile Include="SpoolPotato.c" />
   </ItemGroup>
   <ItemGroup>
     <Midl Include="IWinSpool.idl" />
