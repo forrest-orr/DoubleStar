@@ -23,7 +23,6 @@
 #define SESSION_ID 1
 #define COMMAND_LINE L"notepad.exe"
 #define INTERACTIVE_PROCESS FALSE
-#define SYNC_FOLDER L"C:\\ProgramData\\DoubleStarSync"
 #define SYNC_FILE L"C:\\ProgramData\\DoubleStarSync\\DoubleStarSync"
 
 ////////
@@ -316,15 +315,15 @@ BOOL SpoolPotato() {
                     the CVE-2020-0674 UAF.
 
                     The WPAD client initially:
-                    1. Creates an unsignalled event object and then proceeds to repeatedly make RPC calls to WPAD in a loop
-                    2. Between each iteration of the loop it spends several seconds waiting for a signal on its event object.
-                       If this operation times out, it continues the loop.
-                    3. Once the event has been signalled the WPAD client ends its loop and terminates.
+                    1. Creates a sync event file/folder and then proceeds to repeatedly make RPC calls to WPAD in a loop
+                    2. Between each iteration of the loop it spends several seconds waiting for the signal file it
+                       previously created to be deleted by SpoolPotato.
+                    3. Once the event file has been deleted the WPAD client ends its loop and terminates.
 
                     Meanwhile the SpoolPotato shellcode:
                     1. Makes its privilege escalation operations.
-                    2. Waits for the named event object from the WPAD client to be created.
-                    3. Signals the event object once it has been created.
+                    2. Waits for the sync event file to be created by the WPAD client.
+                    3. Deletes the event file to signal completion to the WPAD client.
                     4. Terminates itself.
                     */
 
