@@ -138,6 +138,7 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
                     );
                 }
                 RpcExcept(1) {
+                    RpcStatus = RpcExceptionCode();
 #ifdef DEBUG
                     DebugLog(L"... GetProxyForUrl failed. Error: 0x%X", RpcExceptionCode());
 #endif
@@ -261,8 +262,11 @@ int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
             DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
 
             if (WaitForSingleObject(hEvent, 3000) == WAIT_OBJECT_0) {
-                DebugLog(L"... received sync signal from SpoolPotato");
+                DebugLog(L"... received sync signal from code within WPAD");
                 break;
+            }
+            else {
+                DebugLog(L"... timed out waiting on sync signal from code within WPAD");
             }
         }
     }
