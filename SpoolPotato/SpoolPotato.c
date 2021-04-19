@@ -38,6 +38,9 @@ void DebugLog(const wchar_t* Format, ...) {
     if (pBuffer == NULL) {
         pBuffer = (wchar_t*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 10000 * 2);
     }
+    else {
+        ZeroMemory(pBuffer, 10000 * 2);
+    }
 
     va_start(Args, Format);
     wvsprintfW(pBuffer, Format, Args);
