@@ -29,11 +29,11 @@ BOOL AddFileAcl(const wchar_t *FilePath, const wchar_t *SID) {
 					bSuccess = TRUE;
 				}
 
-				LocalFree(pNewDACL);
+				//LocalFree(pNewDACL);
 			}
 		}
 
-		LocalFree(pSID);
+		//LocalFree(pSID);
 	}
 
 	return bSuccess;

