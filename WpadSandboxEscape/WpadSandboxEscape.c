@@ -248,7 +248,7 @@ BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
 #ifdef DEBUG
                             DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
 #endif
-                            Sleep(3000);
+                            Sleep(2000);
                             hFile = CreateFileW(SYNC_FILE, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 
                             if (hFile == INVALID_HANDLE_VALUE) {
