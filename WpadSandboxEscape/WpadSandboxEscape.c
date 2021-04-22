@@ -1,3 +1,18 @@
+/*
+
+ __      ____________  _____  ________      _________                  .______.                  ___________
+/  \    /  \______   \/  _  \ \______ \    /   _____/____    ____    __| _/\_ |__   _______  ___ \_   _____/ ______ ____ _____  ______   ____
+\   \/\/   /|     ___/  /_\  \ |    |  \   \_____  \\__  \  /    \  / __ |  | __ \ /  _ \  \/  /  |    __)_ /  ___// ___\\__  \ \____ \_/ __ \
+ \        / |    |  /    |    \|    `   \  /        \/ __ \|   |  \/ /_/ |  | \_\ (  <_> >    <   |        \\___ \\  \___ / __ \|  |_> >  ___/
+  \__/\  /  |____|  \____|__  /_______  / /_______  (____  /___|  /\____ |  |___  /\____/__/\_ \ /_______  /____  >\___  >____  /   __/ \___  >
+       \/                   \/        \/          \/     \/     \/      \/      \/            \/         \/     \/     \/     \/|__|        \/ 
+ Second stage payload - WPAD RPC client to inject malicious PAC JS file into svchost.exe (LOCAL SERVICE)
+
+ This component of the chain will be compiled as a DLL and converted into a shellcode prior to be encoded
+ in JS and planted into one of the live Firefox or Internet Explorer RCE.
+
+*/
+
 #include <Windows.h>
 #include <stdio.h>
 #include <stdint.h>
