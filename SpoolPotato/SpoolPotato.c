@@ -343,7 +343,7 @@ BOOL SpoolPotato() {
 
                     SetEvent(hEvent);
                     CloseHandle(hEvent);
-                    DebugLog(L"... successfully synced WPAD client event file and deleted it");
+                    DebugLog(L"... successfully synced WPAD client via event object");
                 }
                 else {
                     DebugLog(L"... failed to launch process while impersonating RPC client");

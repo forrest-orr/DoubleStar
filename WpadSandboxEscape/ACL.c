@@ -11,7 +11,7 @@ BOOL SetObjectAclAllAccess(HANDLE hObject, wchar_t *SID, SE_OBJECT_TYPE ObjectTy
 	PSECURITY_DESCRIPTOR pSecurityDescriptor = NULL;
 	PSID pSID = NULL;
 	BOOL bSuccess = FALSE;
-	uint32_t dwError = -1;
+	uint32_t dwError;
 
 	if ((dwError = GetSecurityInfo(hObject, ObjectType, DACL_SECURITY_INFORMATION, NULL, NULL, &pDacl, NULL, &pSecurityDescriptor)) == ERROR_SUCCESS) {
 		if (ConvertStringSidToSidW(SID, &pSID)) {
