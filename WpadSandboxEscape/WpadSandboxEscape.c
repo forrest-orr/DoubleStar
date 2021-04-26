@@ -7,7 +7,35 @@ ________                 ___.    .__                 _________  __
         \/                    \/            \/             \/             \/
 Windows 7/8.1 IE/Firefox RCE -> Sandbox Escape -> SYSTEM EoP Exploit Chain
 
-Second stage payload - WPAD RPC client to inject malicious PAC JS file into svchost.exe (LOCAL SERVICE)
+                        ______________
+                        | Remote PAC | 
+                        |____________|  
+                               ^
+                               | HTTPS
+_______________   RPC   _______________   RPC   _______________
+| firefox.exe | ------> | svchost.exe | ------> | spoolsv.exe |
+|_____________|         |_____________| <------ |_____________|
+                               |           SMB
+                               |
+           _______________     | 
+           | malware.exe | <---| Execute impersonating NT AUTHORY\SYSTEM
+           |_____________|
+
+~
+
+Component
+
+WPAD sandbox escape (stage two shellcode) - WPAD RPC client to inject malicious PAC JS file into
+svchost.exe (LOCAL SERVICE).
+
+
+_______________   JIT spray   ________________________   DEP bypass/CALL   _______________________
+| firefox.exe | ------------> | Egg hunter shellcode | ------------------> | WPAD sandbox escape |
+|_____________|               |______________________|                     | shellcode (heap)    |
+                                                                           |_____________________|
+~
+
+Overview
 
 This component of the chain will be compiled as a DLL and converted into a shellcode prior to be encoded
 in JS and planted into one of the live Firefox or Internet Explorer RCE.
