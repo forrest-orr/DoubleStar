@@ -16,7 +16,7 @@
 // Global settings
 ////////
 
-#define DEBUG
+//#define DEBUG
 //#define EXE_BUILD
 #define DLL_BUILD
 #define SHELLCODE_BUILD

