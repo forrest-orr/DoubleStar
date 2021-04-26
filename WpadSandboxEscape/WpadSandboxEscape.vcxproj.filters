@@ -24,8 +24,8 @@
     <ClCompile Include="IWinHttpAutoProxySvc_c.c">
       <Filter>Header Files\RPC</Filter>
     </ClCompile>
-    <ClCompile Include="ACL.c">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="RpcHelpers.c">
+      <Filter>Header Files\RPC</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

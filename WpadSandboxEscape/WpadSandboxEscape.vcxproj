@@ -145,8 +145,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ACL.c" />
     <ClCompile Include="IWinHttpAutoProxySvc_c.c" />
+    <ClCompile Include="RpcHelpers.c" />
     <ClCompile Include="WpadSandboxEscape.c" />
   </ItemGroup>
   <ItemGroup>
