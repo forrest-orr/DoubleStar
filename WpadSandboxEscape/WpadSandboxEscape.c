@@ -15,7 +15,7 @@ Windows 7/8.1 IE/Firefox RCE -> Sandbox Escape -> SYSTEM EoP Exploit Chain
 _______________   RPC   _______________   RPC   _______________
 | firefox.exe | ------> | svchost.exe | ------> | spoolsv.exe |
 |_____________|         |_____________| <------ |_____________|
-                               |           SMB
+                               |          Pipe
                                |
            _______________     | 
            | malware.exe | <---| Execute impersonating NT AUTHORY\SYSTEM
@@ -97,7 +97,7 @@ with the object.
 Credits
 
 Hacksys team - they did the reverse engineering and wrote the original PoC
-for this technique.
+               for this technique.
 
 */
 
