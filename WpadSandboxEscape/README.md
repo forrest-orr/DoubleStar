@@ -59,12 +59,7 @@ sandbox escape and privilege escalation in the future.
 
 When executed via Firefox CVE-2019-17026, this is the second shellcode to be run
 as part of this chain and will be found on the heap by the JIT sprayed egg hunter
-shellcode, set to +RWX and then executed via a CALL instruction.
-
-It will not work properly in IE11 64-bit (Enhanced Protected Mode) on Windows 8.1
-due to the Low Integrity status of iexplore.exe being unable to create the global
-synchronization event object in \BaseNamedObjects. If the synchronization
-requirement is removed, it will work fine.
+shellcode, set to +RWX and then executed.
 
 It should also be noted that this code is designed to be run on Windows 8.1 or 10:
 the WPAD RPC interface has changed between Windows 7 and 8.1 and the interface
