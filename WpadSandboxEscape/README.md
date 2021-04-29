@@ -1,3 +1,4 @@
+```
 ________                 ___.    .__                 _________  __
 \______ \    ____   __ __\_ |__  |  |    ____       /   _____/_/  |_ _____  _______
  |    |  \  /  _ \ |  |  \| __ \ |  |  _/ __ \      \_____  \ \   __\\__  \ \_  __ \
@@ -60,10 +61,11 @@ When executed via Firefox CVE-2019-17026, this is the second shellcode to be run
 as part of this chain and will be found on the heap by the JIT sprayed egg hunter
 shellcode, set to +RWX and then executed via a CALL instruction.
 
-It will not work properly in IE11 64-bit (Enhanced Protected Mode) on Windows 8.1
-due to the Low Integrity status of iexplore.exe being unable to create the global
-synchronization event object in \BaseNamedObjects. If the synchronization
-requirement is removed, it will work fine.
+When executed via Internet Explorer 11 Enhanced Protected Mode CVE-2020-0674 this
+will be the first stage/initial shellcode to be executed, and will result in 
+repeated continuous RPC calls to WPAD resulting in multiple payload execution.
+This is due to IE11 running as Low Integrity being unable to create the global
+event object needed to synchronize this shellcode with the Spool Potato shellcode.
 
 It should also be noted that this code is designed to be run on Windows 8.1 or 10:
 the WPAD RPC interface has changed between Windows 7 and 8.1 and the interface
@@ -96,3 +98,4 @@ Credits
 
 Hacksys team - they did the reverse engineering and wrote the original PoC
 for this technique.
+```
