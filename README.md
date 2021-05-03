@@ -105,7 +105,7 @@ assume that their technique need not have been a 0day exploit. Processes launche
 by the LOCAL SERVICE account are provided with the SeImpersonate privilege by 
 default (a sensitive privilege which allows its owner to impersonate the security
 context of any user whose token they can obtain/forge, or who connects to their
-processes via an RPC client (both named pipes and ALPC have APIs which provide
+processes via an RPC client - both named pipes and ALPC have APIs which provide
 impersonation functionality).
 
 When adapting my own variation of the Double Star exploit chain, my initial
