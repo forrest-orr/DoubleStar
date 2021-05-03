@@ -50,10 +50,9 @@ versions of Windows, the full chain will only work on Windows 8.1.
 Overview
 
 The Darkhotel APT group (believed to originate from South Korea) launched a
-campaign againt Chinee and Japanese business executives and government officials
+campaign againt Chinese and Japanese business executives and government officials
 through a combination of spear phishing and hacking of luxury hotel networks in
-early 2020, taking advantage of Microsoft's decision to discontinue support for
-Windows 7. The exploits they used (CVE-2020-0674 and CVE-2019-17026, together
+early 2020. The exploits they used (CVE-2020-0674 and CVE-2019-17026, together
 dubbed "Double Star") were slight 0day variations of old/existing exploits from
 2019: specifically UAF bugs in the legacy JavaScript engine (jscript.dll) and
 aliasing bugs in the Firefox IonMonkey engine.
@@ -63,23 +62,21 @@ RCE through the Internet Explorer and Firefox web browsers: CVE-2020-0674 in
 particular (a UAF in the legacy jscript.dll engine) is exploitable in any process
 in which legacy JS code can be executed via jscript.dll. In late 2017, Google
 Project Zero released a blog post entitled "aPAColypse now: Exploiting Windows 10
-in a Local Network with WPAD/PAC and JScript"
-https://googleprojectzero.blogspot.com/2017/12/apacolypse-now-exploiting-windows-10-in_18.html
+in a Local Network with WPAD/PAC and JScript" https://googleprojectzero.blogspot.com/2017/12/apacolypse-now-exploiting-windows-10-in_18.html
 
 This research brought to light a very interesting attack vector which (at the
 time) affected all versions of Windows from 7 onward: the WPAD service (or
 "WinHTTP Web Proxy Auto-Discovery Service") contains an ancient functionality
 for updating proxy configurations via a "PAC" file. Any user which can speak
-to the WPAD service (running within a LOCAL SERVICE svchost.exe process) over
-RPC can coerce it into downloading a "PAC" file from a remote URL containing JS
+to the WPAD service (running within an svchost.exe process as LOCAL SERVICE) over
+RPC can coerce it into downloading a PAC file from a remote URL containing JS
 code which is responsible for setting the correct proxy configuration for a user
-supplied URL. Most notably, due to the highly antiquated/legacy nature of these
-PAC files they were often expected to be written in old versions of JavaScript
-which called for use of the legacy jscript.dll engine to parse. This opened up
-an attack vector wherein any process (regardless of limited user privileges or
-even sandboxing) could connect to the local WPAD service over ALPC and coerce it
-into downloading a malicious PAC file containing a jscript.dll exploit from a
-remote URL. This would result in code execution in the context of LOCAL SERVICE.
+supplied URL. Most notably, the legacy jscript.dll engine is used to parse these
+PAC files. This opened up an attack vector wherein any process (regardless of
+limited user privileges or even sandboxing) could connect to the local WPAD
+service over ALPC and coerce it into downloading a malicious PAC file containing
+a jscript.dll exploit from a remote URL. This would result in code execution in
+the context of LOCAL SERVICE.
 
 Darkhotel took this concept and used it as their sandbox escape after they
 obtained RCE via Firefox or Internet Explorer. The next step in their attack
@@ -104,17 +101,14 @@ patched by Microsoft, and I settled on a more robust/modern technique recently
 publicized by itm4n instead:
 https://itm4n.github.io/printspoofer-abusing-impersonate-privileges/
 
-This technique combined an old RPC primitive popular among Red Teamers for TGT
+This technique combined an old RPC interface popular among Red Teamers for TGT
 harvesting in environments with unconstrained delegation enabled (aka the
 "Printer Bug") with an impersonation/Rotten Potato style attack adapted for
 local privilege escalation. 
 
 Additionally, rather than targeting Windows 7, I decided to focus on Windows 8.1
-due to the challenge presented by its enhanced security mitigations. More
-specifically:
-1. The non-deterministic LFH in 8.1+ made exploiting UAF trickier.
-2. High entropy ASLR.
-3. Control Flow Guard (CFG).
+due to the challenge presented by its enhanced security mitigations such as
+non-deterministic LFH, high entropy ASLR and Control Flow Guard (CFG).
 
 ~
 
