@@ -21,6 +21,46 @@ _______________  RPC/ALPC   _______________   RPC/ALPC   _______________
                | malware.exe | <---| Execute impersonating NT AUTHORY\SYSTEM
                |_____________|
 
+~
+
+Usage
+
+x
+
+~
+
+Overview
+
+x
+
+~
+
+CVE-2020-0674
+
+x
+
+~
+
+CVE-2019-17026
+
+x
+
+~
+
+Payloads
+
+x
+
+~
+
+Credits
+
+maxspl0it - for writing the initial analysis and PoC for CVE-2019-17026 with a
+            focus on the Linux OS, and for writing the initial analysis and PoC
+			for CVE-2020-0674 with a focus on IE8/11 on Windows 7 x64.
+            
+0vercl0k  - for documenting IonMonkey internals in relation to aliasing and
+            the GVN.
 
 
 ```
