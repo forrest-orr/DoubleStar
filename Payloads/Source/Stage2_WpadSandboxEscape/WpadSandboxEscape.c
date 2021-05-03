@@ -29,10 +29,10 @@ WPAD sandbox escape (stage two shellcode) - WPAD RPC client to inject malicious 
 JS file into svchost.exe (LOCAL SERVICE).
 
 
-_______________  JIT spray   ________________________  DEP bypass   _______________________
-| firefox.exe | -----------> | Egg hunter shellcode | ------------> | WPAD sandbox escape |
-|_____________|              |______________________|               | shellcode (heap)    |
-                                                                    |_____________________|
+_______________  JIT spray   ______________  DEP bypass   _______________________
+| firefox.exe | -----------> | Egg hunter | ------------> | WPAD sandbox escape |
+|_____________|              | shellcode  |               | shellcode (heap)    |
+                             |____________|               |_____________________|
 ~
 
 Overview
