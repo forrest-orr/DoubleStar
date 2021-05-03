@@ -242,7 +242,26 @@ service process.
 
 Payloads
 
-x
+This exploit chain has three shellcode payloads, found within this repository
+under Payloads\Compiled\JS in their JavaScript encoded shellcode form:
+- Stage one: egg hunter shellcode (ASM).
+- Stage two: WPAD sandbox escape shellcode (C DLL, sRDI to shellcode).
+- Stage three: Spool Potato privilege escalation shellcode (C DLL, sRDI to
+  shellcode).
+
+When IE is used as the initial RCE attack vector, only the stage two and three
+shellcodes are needed. When FF is used as the initial RCE attack vector, all
+three are used.
+
+I've also included several additional shellcodes for testing purposes (a
+MessageBoxA and WinExec shellcode). Note when using these that in the case of
+Firefox CVE-2019-17026, the shellcode should be represented as a Uint8Array
+prefixed by the following egg QWORD: 0x8877665544332211. In the case of
+CVE-2020-0674, the shellcode should be represented as a DWORD array.
+
+Also note that when using a WinExec or MessageBoxA payload in conjunction with
+Firefox CVE-2019-17026, you must adjust the sandbox content level in the
+"about:config" down to 2 first. 
 
 ~
 
