@@ -191,7 +191,52 @@ Windows 10 has blacklisted NTDLL.DLL!NtContinue to CFG by default.
 
 CVE-2019-17026
 
-x
+This is a Windows variation of CVE-2019-17026, an exploit targetting a type
+confusion bug in the IonMonkey engine of Firefox up to FF 72. Due to specific
+issues with heap grooming, this particular variant of CVE-2019-17026 only works
+on versions of Firefox up to FF 69 even though the bug was not fixed until FF
+72 and is still technically exploitable on FF 70 and 71.
+
+CVE-2019-17026 represents the initial RCE vector in the Double Star exploit
+chain. Unlike my re-creation of CVE-2020-0674, which is limited to efficacy
+in IE/WPAD instances running within Windows 7 and 8.1 (with Windows 10 CFG and
+WPAD sandboxing being beyond the scope of this project in complexity to bypass)
+this particular exploit is effective on any version of Windows, including 10
+provided that a vulnerable version of Firefox is installed. The reason for this
+is that presence of (and exploit usage of) a JIT engine in this exploit makes
+dealing with both DEP and CFG substantially easier.
+
+This exploit contains two shellcodes: an egg hunter/DEP bypass shellcode (which
+is JIT sprayed) and a primary (stage two) shellcode stored as a static Uint8Array.
+The stage one (egg hunter) shellcode is responsible for scanning the entire
+memory space of the current firefox.exe process and finding the stage two
+shellcode on the heap. This is achieved by prefixing the stage two shellcode
+with a special 64-bit egg value which this egg hunter shellcode scans for. Once
+it has found the stage two shellcode, it uses KERNEL32.DLL!VirtualProtect to
+change its permissions to +RWX, and then directly executes it via a CALL
+instruction.
+
+The Firefox sandbox prevents access to the filesystem (besides a special sandbox
+temp directory) and registry but additionally (unlike IE11 on Windows 8.1) locks
+down access to the desktop window session (which prevents even a MessageBoxA
+from popping) and sets a child process creation quota of zero (preventing the
+creation of child processes). By adjusting the sandbox content level in the FF
+"about:config" settings some of these features can be disabled for testing
+purposes. For example, setting the content level down from "5" (the default) to
+"2" will allow MessageBoxA to pop as well as child process creation, however even
+when the content level is set down to "0" there are certain protections which will
+persist (such as inability to access the file system). 
+
+One vector however which is not guarded by the sandbox is access to ALPC port
+objects, which can be used to initiate connections to LocalServer32 COM servers
+running in external (and potentially non-sandboxed or elevated) processes. This
+detail is exploited by this chain by utilizing a stage two shellcode which
+initiates an RPC (ALPC) connection to the WPAD service and triggers it to
+download and execute a PAC file from a remote URL containing CVE-2020-0674 into
+its own process (svchost.exe running as LOCAL SERVICE). In this way, the sandbox
+can be escaped via RPC/ALPC and simultaneously elevated from the current user
+session (which may have limited/non-administrator privileges) into a sensitive
+service process.
 
 ~
 
