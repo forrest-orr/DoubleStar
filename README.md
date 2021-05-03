@@ -128,115 +128,29 @@ local privilege escalation.
 
 CVE-2020-0674
 
-This is a 64-bit adaptation of CVE-2020-0674 which can exploit both IE8/11
-64-bit as well as the WPAD service on Windows 7 and 8.1 x64. It has bypasses
-for DEP, ASLR, and CFG. It uses dynamic ROP chain creation for its RIP
-hijack and stack pivot. Notably, this exploit does not contain bypasses for
-Windows Exploit Guard or EMET 5.5 and does not work on IE11 or WPAD in
-Windows 10.
+Malicious PAC file containing CVE-2020-0674 UAF exploit - downloaded into
+the WPAD service svchost.exe (LOCAL SERVICE) via RPC trigger. Contains
+stage three shellcode (Spool Potato EoP). This exploit may serve a dual purpose
+as an initial RCE attack vector through IE11 64-bit aas well.
 
-The UAF is a result of two untracked variables passed to a comparator for the
-Array.sort method, which can then be used to reference VAR structs within
-allocated GcBlock regions which can subsequently be freed via garbage
-collection. Control of the memory of VAR structs with active JS var
-references in the runtime script is then used for arbitrary read (via BSTR)
-and addrof primitives.
-
-Ultimately the exploit aims to use KERNEL32.DLL!VirtualProtect to disable DEP
-on a user defined shellcode stored within a BSTR on the heap. This is achieved
-through use of NTDLL.DLL!NtContinue, an artificial stack (built on the heap)
-and a dynamically resolved stack pivot ROP gadget.
-
-NTDLL.DLL!NtContinue --------------------> RIP = <MSVCRT.DLL!0x00019baf> | MOV RSP, R11; RET
-                                           RCX = Shellcode address
-                                           RDX = Shellcode size
-                                           R8 = 0x40
-                                           R9 = Leaked address of BSTR to hold out param    
-                                           RSP = Real stack pointer             
-                                           R11 = Artificial stack
-|-----------------------------|            ^
-| 2MB stack space (heap)      |            |
-|-----------------------------|            |
-| Heap header/BSTR len align  |            |
-|-----------------------------|            |
-| KERNEL32.DLL!VirtualProtect | <----------|
-|-----------------------------|
-| Shellcode return address    ]
-|-----------------------------|   
-
-The logic flow is:
-1. A fake object with a fake vtable is constructed containing the address
-   of NTDLL.DLL!NtContinue as its "typeof" method pointer. This primitive
-   is used for RIP hijack in conjunction with a pointer to a specially
-   crafted CONTEXT structure in RCX as its parameter. 
-2. NtContinue changes RIP to a stack pivot gadget and sets up the parameters
-   to KERNEL32.DLL!VirtualProtect.
-3. The address of VirtualProtect is the first return address to be
-   consumed on the new (artificial) stack after the stack pivot.
-4. VirtualProtect disables DEP on the shellcode region and returns to that
-   same (now +RWX) shellcode address stored as the second return address on
-   the pivoted stack.
-   
-Notably, the stack pivot was needed here due to the presence of CFG on
-Windows 8.1, which prevents NtContinue from being used to change RSP to an
-address which falls outside the stack start/end addresses specified in the
-TEB. On Windows 7 this is a non-issue. Furthermore, it required a leak of RSP
-to be planted in the CONTEXT structure so that NtContinue would consider its
-new RSP valid.
-
-The exploit will not work on Windows 10 due to enhanced protection by CFG:
-Windows 10 has blacklisted NTDLL.DLL!NtContinue to CFG by default.
-
+_______________  RPC   _______________  CVE-2020-0674   ________________
+| firefox.exe | -----> | svchost.exe | ---------------> | Spool Potato |
+|_____________|        |_____________|                  | shellcode    |
+                                                        |______________|
 ~
 
 CVE-2019-17026
 
-This is a Windows variation of CVE-2019-17026, an exploit targetting a type
-confusion bug in the IonMonkey engine of Firefox up to FF 72. Due to specific
-issues with heap grooming, this particular variant of CVE-2019-17026 only works
-on versions of Firefox up to FF 69 even though the bug was not fixed until FF
-72 and is still technically exploitable on FF 70 and 71.
+Firefox 64-bit IonMonkey JIT/Type Confusion RCE. Represents the initial attack
+vector when a user visits an infected web page with a vulnerable version of
+Firefox. This component contains a stage one (egg hunter) and stage two (WPAD
+sandbox escape) shellcode, the latter of which is only effective on Windows 8.1
+due to hardcoded RPC IDL interface details for WPAD.
 
-CVE-2019-17026 represents the initial RCE vector in the Double Star exploit
-chain. Unlike my re-creation of CVE-2020-0674, which is limited to efficacy
-in IE/WPAD instances running within Windows 7 and 8.1 (with Windows 10 CFG and
-WPAD sandboxing being beyond the scope of this project in complexity to bypass)
-this particular exploit is effective on any version of Windows, including 10
-provided that a vulnerable version of Firefox is installed. The reason for this
-is that presence of (and exploit usage of) a JIT engine in this exploit makes
-dealing with both DEP and CFG substantially easier.
-
-This exploit contains two shellcodes: an egg hunter/DEP bypass shellcode (which
-is JIT sprayed) and a primary (stage two) shellcode stored as a static Uint8Array.
-The stage one (egg hunter) shellcode is responsible for scanning the entire
-memory space of the current firefox.exe process and finding the stage two
-shellcode on the heap. This is achieved by prefixing the stage two shellcode
-with a special 64-bit egg value which this egg hunter shellcode scans for. Once
-it has found the stage two shellcode, it uses KERNEL32.DLL!VirtualProtect to
-change its permissions to +RWX, and then directly executes it via a CALL
-instruction.
-
-The Firefox sandbox prevents access to the filesystem (besides a special sandbox
-temp directory) and registry but additionally (unlike IE11 on Windows 8.1) locks
-down access to the desktop window session (which prevents even a MessageBoxA
-from popping) and sets a child process creation quota of zero (preventing the
-creation of child processes). By adjusting the sandbox content level in the FF
-"about:config" settings some of these features can be disabled for testing
-purposes. For example, setting the content level down from "5" (the default) to
-"2" will allow MessageBoxA to pop as well as child process creation, however even
-when the content level is set down to "0" there are certain protections which will
-persist (such as inability to access the file system). 
-
-One vector however which is not guarded by the sandbox is access to ALPC port
-objects, which can be used to initiate connections to LocalServer32 COM servers
-running in external (and potentially non-sandboxed or elevated) processes. This
-detail is exploited by this chain by utilizing a stage two shellcode which
-initiates an RPC (ALPC) connection to the WPAD service and triggers it to
-download and execute a PAC file from a remote URL containing CVE-2020-0674 into
-its own process (svchost.exe running as LOCAL SERVICE). In this way, the sandbox
-can be escaped via RPC/ALPC and simultaneously elevated from the current user
-session (which may have limited/non-administrator privileges) into a sensitive
-service process.
+_______________  JIT spray   ______________  DEP bypass   _______________________
+| firefox.exe | -----------> | Egg hunter | ------------> | WPAD sandbox escape |
+|_____________|              | shellcode  |               | shellcode (heap)    |
+                             |____________|               |_____________________|
 
 ~
 
