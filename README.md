@@ -54,11 +54,10 @@ few years have rendered various aspects of this exploit chain infeasible
 (although not objectively impossible) within the scope of this project.
 Specifically, Windows 10 has a hardened Control Flow Guard exploit mitigation
 which prevents the RIP hijack technique (itself a CFG bypass on Windows 8.1) in
-CVE-2020-0674, rendering it useless. Furthermore, the introduction of heavy
-WPAD service sandboxing on recent versions of Windows 10 render the use of
-CVE-2020-0674 (even in the event that a more sophisticated CFG were implemented
-for it) infeasible for the sandbox escape component of the exploit chain via
-WPAD.
+CVE-2020-0674. Furthermore, the introduction of heavy WPAD service sandboxing
+on recent versions of Windows 10 render the use of CVE-2020-0674 (even in the
+event that a more sophisticated CFG were implemented for it) infeasible for the
+sandbox escape component of the exploit chain via WPAD.
 
 ~
 
