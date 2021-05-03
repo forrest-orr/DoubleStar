@@ -43,21 +43,7 @@ The individual exploits have been successfully tested in the following context:
 - CVE-2019-17026 - Firefox 65-69 (64-bit) on Windows 7, 8.1 and 10 x64.
 
 Note that while the individual exploits themselves may work on multiple
-versions of Windows, the full chain will only work on Windows 8.1, and the
-reason is as follows: this chain utilizes 2 RPC clients (executed in the form
-of shellcode) whose IDL/interface details are invalid on Windows 7. Both of
-these shellcodes are essential for the exploit chain to move beyond the
-compromised browser process and as a result the chain will not work on Windows
-7 (although the individual CVE will independent of one another). Furthermore,
-when it comes to Windows 10, significant security enhancements over the past
-few years have rendered various aspects of this exploit chain infeasible
-(although not objectively impossible) within the scope of this project.
-Specifically, Windows 10 has a hardened Control Flow Guard exploit mitigation
-which prevents the RIP hijack technique (itself a CFG bypass on Windows 8.1) in
-CVE-2020-0674. Furthermore, the introduction of heavy WPAD service sandboxing
-on recent versions of Windows 10 render the use of CVE-2020-0674 (even in the
-event that a more sophisticated CFG were implemented for it) infeasible for the
-sandbox escape component of the exploit chain via WPAD.
+versions of Windows, the full chain will only work on Windows 8.1.
 
 ~
 
@@ -123,6 +109,12 @@ harvesting in environments with unconstrained delegation enabled (aka the
 "Printer Bug") with an impersonation/Rotten Potato style attack adapted for
 local privilege escalation. 
 
+Additionally, rather than targeting Windows 7, I decided to focus on Windows 8.1
+due to the challenge presented by its enhanced security mitigations. More
+specifically:
+1. The non-deterministic LFH in 8.1+ made exploiting UAF trickier.
+2. High entropy ASLR.
+3. Control Flow Guard (CFG).
 
 ~
 
