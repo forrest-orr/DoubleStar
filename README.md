@@ -40,7 +40,7 @@ privileges.
 The individual exploits have been successfully tested in the following context:
 - CVE-2020-0674 - IE8 64-bit and WPAD on Windows 7 x64, IE11 64-bit and WPAD
   on Windows 8.1 x64.
-- CVE-2019-17026 - Firefox 65-69 (64-bit) on Windows 7, 8.1 and 10.
+- CVE-2019-17026 - Firefox 65-69 (64-bit) on Windows 7, 8.1 and 10 x64.
 
 Note that while the individual exploits themselves may work on multiple
 versions of Windows, the full chain will only work on Windows 8.1, and the
