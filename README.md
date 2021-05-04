@@ -49,6 +49,10 @@ versions of Windows, the full chain will only work on Windows 8.1.
 
 Overview
 
+While this exploit chain makes use of two (now patched) 0day exploits, it also
+contains a sandbox escape and EoP technique which are still as of 5/4/2021 not
+patched, and remain feasible for integration into future attacka chains today.
+
 The Darkhotel APT group (believed to originate from South Korea) launched a
 campaign againt Chinese and Japanese business executives and government officials
 through a combination of spear phishing and hacking of luxury hotel networks in
@@ -62,7 +66,7 @@ RCE through the Internet Explorer and Firefox web browsers: CVE-2020-0674 in
 particular (a UAF in the legacy jscript.dll engine) is exploitable in any process
 in which legacy JS code can be executed via jscript.dll. In late 2017, Google
 Project Zero released a blog post entitled "aPAColypse now: Exploiting Windows 10
-in a Local Network with WPAD/PAC and JScript" https://googleprojectzero.blogspot.com/2017/12/apacolypse-now-exploiting-windows-10-in_18.html
+in a Local Network with WPAD/PAC and JScript" [1].
 
 This research brought to light a very interesting attack vector which (at the
 time) affected all versions of Windows from 7 onward: the WPAD service (or
@@ -97,9 +101,8 @@ LOCAL SERVICE to SYSTEM. However, Rotten Potato (which utilizes a port binding
 in conjunction with a coerced connection/NTLM authentication from the SYSTEM
 account to generate a security context it then impersonates) had recently had
 its most popular method to coerce network authentication from the SYSTEM account
-patched by Microsoft, and I settled on a more robust/modern technique recently
-publicized by itm4n instead:
-https://itm4n.github.io/printspoofer-abusing-impersonate-privileges/
+patched by Microsoft, and I settled on a more robust/modern technique instead:
+named pipe impersonation of a coerced RPC connection from the Print Spooler [2]
 
 This technique combined an old RPC interface popular among Red Teamers for TGT
 harvesting in environments with unconstrained delegation enabled (aka the
@@ -179,5 +182,12 @@ HackSys Team  - for tips on the WPAD service and low level JS debugging.
 
 itm4n         - for the original research on combining the RPC printer bug with
                 named pipe impersonation.
+				
+~
+
+Links
+
+[1] https://googleprojectzero.blogspot.com/2017/12/apacolypse-now-exploiting-windows-10-in_18.html
+[2] https://itm4n.github.io/printspoofer-abusing-impersonate-privileges/
 
 ```
