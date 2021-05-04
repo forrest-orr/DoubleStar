@@ -90,24 +90,18 @@ In all of the analysis of the Darkhotel Double Star attack chain, I was not able
 to find a detailed explanation of how they achieved this, however it is safe to
 assume that their technique need not have been a 0day exploit. Processes launched
 by the LOCAL SERVICE account are provided with the SeImpersonate privilege by 
-default (a sensitive privilege which allows its owner to impersonate the security
-context of any user whose token they can obtain/forge, or who connects to their
-processes via an RPC client - both named pipes and ALPC have APIs which provide
-impersonation functionality).
+default and thus can elevate their security context in the event they can coerce
+a privileged connection to themselves via named pipes or ALPC. 
 
-When adapting my own variation of the Double Star exploit chain, my initial
-plan was to utilize a Rotten Potato style attack to escalate my privileges from
-LOCAL SERVICE to SYSTEM. However, Rotten Potato (which utilizes a port binding
-in conjunction with a coerced connection/NTLM authentication from the SYSTEM
-account to generate a security context it then impersonates) had recently had
-its most popular method to coerce network authentication from the SYSTEM account
-patched by Microsoft, and I settled on a more robust/modern technique instead:
-named pipe impersonation of a coerced RPC connection from the Print Spooler [2]
-
-This technique combined an old RPC interface popular among Red Teamers for TGT
-harvesting in environments with unconstrained delegation enabled (aka the
-"Printer Bug") with an impersonation/Rotten Potato style attack adapted for
-local privilege escalation. 
+It is likely that the Darkhotel APT group used Rotten Potato for their EoP from
+LOCAL SERVICE, as this was the simplest and most common technique in widespread
+use several years ago (as well as the technique used in the Google Project Zero
+"aPAColypse now" research, however I settled on a more robust/modern technique
+instead: named pipe impersonation of a coerced RPC connection from the Print
+Spooler [2]. This technique combined an old RPC interface popular among Red
+Teamers for TGT harvesting in environments with unconstrained delegation enabled
+(aka the "Printer Bug") with an impersonation/Rotten Potato style attack adapted
+for local privilege escalation. 
 
 Additionally, rather than targeting Windows 7, I decided to focus on Windows 8.1
 due to the challenge presented by its enhanced security mitigations such as
