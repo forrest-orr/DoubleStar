@@ -170,7 +170,7 @@ Firefox CVE-2019-17026, you must adjust the sandbox content level in the
 
 Credits
 
-maxspl0it     - for writing the initial analysis and PoC for CVE-2019-17026
+maxpl0it      - for writing the initial analysis and PoC for CVE-2019-17026
                 with a focus on the Linux OS, and for writing the initial
                 analysis and PoC for CVE-2020-0674 with a focus on IE8/11 on
                 Windows 7 x64.
